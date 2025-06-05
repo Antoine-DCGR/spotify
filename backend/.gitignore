@@ -1,2 +1,76 @@
+# ========================
+# Gitignore pour le Backend
+# ========================
 
+# Ignore les fichiers d’environnement (s’ils contiennent des secrets)
 .env
+.env.local
+.env.*.local
+
+# Ignorer les logs PHP ou fichiers temporaires
+*.log
+*.cache
+*.tmp
+
+# Ignorer les fichiers de configuration locale de l’IDE / éditeur
+/.idea/
+/.vscode/
+/nbproject/
+/*.sublime-project
+/*.sublime-workspace
+
+# Ignorer les fichiers système
+.DS_Store
+Thumbs.db
+
+# Ignorer les dépendances si Composer était utilisé (même si vous n’utilisez pas Composer, 
+# cela permet de ne pas commiter un dossier vendor accidentel)
+vendor/
+
+# Ignorer les fichiers générés par l’OS (exemple Linux core dumps)
+core.*
+
+# Ignorer les dossiers de build ou déploiement locaux
+/build/
+/dist/
+/tmp/
+/cache/
+
+# Ignorer les fichiers de configuration Docker Compose uniquement si vous en avez plusieurs versions locales
+.env.docker-compose
+docker-compose.override.yml
+
+# Ignorer les fichiers de base de données générés localement (si vous avez un fichier SQLite par exemple)
+*.sqlite
+*.sqlite3
+
+# Ignorer les snapshots PHPUnit (si vous écrivez des tests)
+*.phpspec.*
+*.phpunit.*
+phpunit.xml
+phpunit.xml.dist
+
+# Ignorer les fichiers de test/couverture
+coverage/
+*.clover
+
+# Ignorer uploads ou fichiers médias temporaires
+/uploads/
+/media/tmp/
+/media/cache/
+
+# Ignorer les archives ou sauvegardes auto
+*.zip
+*.tar.gz
+*.bak
+
+# Ignorer les fichiers d’export SQL / dumps
+*.sql
+*.sql.gz
+
+# Exemple d’exclusion : conserver le docker-compose principal
+!docker-compose.yml
+
+# ========================
+# Fin du .gitignore
+# ========================
