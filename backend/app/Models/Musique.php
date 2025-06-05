@@ -1,25 +1,50 @@
 <?php
+// app/Models/Musique.php
 
-class Musique {
+class Musique
+{
     private $pdo;
 
-    public function __construct($pdo) {
+    public function __construct(PDO $pdo)
+    {
         $this->pdo = $pdo;
     }
 
-    public function getAll() {
-        $stmt = $this->pdo->query("SELECT * FROM musique");
+    /**
+     * Récupère toutes les musiques locales stockées en base.
+     */
+    public function getAll(): array
+    {
+        $stmt = $this->pdo->query("SELECT * FROM musiques");
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function insert($artiste, $album, $titre, $playlist_id) {
-        $stmt = $this->pdo->prepare("INSERT INTO musique (artiste, album, titre, playlist_id) VALUES (?, ?, ?, ?)");
-        return $stmt->execute([$artiste, $album, $titre, $playlist_id]);
-    }
-
-    public function getByPlaylist($playlistId) {
-        $stmt = $this->pdo->prepare("SELECT * FROM musique WHERE playlist_id = ?");
-        $stmt->execute([$playlistId]);
+    /**
+     * Récupère les musiques correspondant à l'ID Spotify d'une playlist.
+     * Ajustez la requête selon votre schéma de tables.
+     */
+    public function getByPlaylistSpotify(string $playlistSpotifyId): array
+    {
+        // Exemple : la table 'musiques' contient un champ 'playlist_spotify_id'
+        $stmt = $this->pdo->prepare("
+            SELECT * 
+            FROM musiques 
+            WHERE playlist_spotify_id = ?
+        ");
+        $stmt->execute([$playlistSpotifyId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        /*
+        // Si vous utilisez une table pivot 'playlist_musique', décommentez et adaptez :
+        $stmt = $this->pdo->prepare("
+            SELECT m.* 
+            FROM musiques m
+            JOIN playlist_musique pm 
+              ON m.id = pm.musique_id
+            WHERE pm.playlist_spotify_id = ?
+        ");
+        $stmt->execute([$playlistSpotifyId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        */
     }
 }
