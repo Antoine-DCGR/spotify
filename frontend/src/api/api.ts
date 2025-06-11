@@ -12,23 +12,35 @@ export type Playlist = {
 };
 
 export type Music = {
-  id: number;
+  id: number;            // clé primaire interne (AUTO_INCREMENT)
+  spotify_track_id: string;
+  titre: string;
   artiste: string;
   album: string;
-  titre: string;
-  playlist_id: number;
+  duree_ms: number;
+  created_at: string;    // ou Date selon votre parsing
 };
 
 
 export async function getPlaylists(): Promise<Playlist[]> {
-  const res = await fetch(`${API_URL}/index.php?page=recupPlaylists`);
+  const res = await fetch(`${API_URL}/index.php?page=allPlaylists`);
   const json = await res.json();
   // Si le backend renvoie { playlists: [ ... ] }, on retourne json.playlists directement
   return json.playlists as Playlist[];
 }
 
 
-export async function getMusicsByPlaylist(playlistId: number): Promise<Music[]> {
-  const res = await fetch(`${API_URL}/musique/byplaylist?playlist_id=${playlistId}`);
-  return res.json();
+
+export async function getMusicsByPlaylist(
+  playlistSpotifyId: string
+): Promise<Music[]> {
+  // Noter qu’on passe playlistId=spotify_id (string) au backend
+  const res = await fetch(
+    `${API_URL}/index.php?page=musiqueByPlaylist&playlistId=${encodeURIComponent(
+      playlistSpotifyId
+    )}`
+  );
+  // Le backend renvoie { musique: [ { id, spotify_track_id, titre, … }, … ] }
+  const json = await res.json();
+  return json.musique as Music[];
 }

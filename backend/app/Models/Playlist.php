@@ -12,8 +12,10 @@ class Playlist
     }
 
     /**
-     * Insère une playlist Spotify en base si elle n'existe pas déjà.
-     * Retourne true si l’insertion a eu lieu ou a été ignorée (duplicate), false sinon.
+     * Insère une playlist Spotify si elle n'existe pas déjà.
+     * Utilisé ponctuellement (POST) ; en mode fetch, on utilise INSERT IGNORE préparé dans le contrôleur.
+     *
+     * @return bool
      */
     public function insertIfNotExistsSpotify(
         string $spotifyId,
@@ -24,26 +26,27 @@ class Playlist
         int $tracksCount,
         bool $isPublic
     ): bool {
-        $sql = "
+        $stmt = $this->pdo->prepare("
             INSERT IGNORE INTO spotify_playlists
               (spotify_id, nom, description, owner, image, tracks_count, is_public, created_at)
             VALUES
-              (:sid, :nom, :descr, :owner, :img, :count, :pub, NOW())
-        ";
-        $stmt = $this->pdo->prepare($sql);
+              (:spotify_id, :nom, :description, :owner, :image, :tracks_count, :is_public, NOW())
+        ");
         return $stmt->execute([
-            ':sid'   => $spotifyId,
-            ':nom'   => $nom,
-            ':descr' => $description,
-            ':owner' => $owner,
-            ':img'   => $imageURL,
-            ':count' => $tracksCount,
-            ':pub'   => $isPublic ? 1 : 0,
+            ':spotify_id'   => $spotifyId,
+            ':nom'          => $nom,
+            ':description'  => $description,
+            ':owner'        => $owner,
+            ':image'        => $imageURL,
+            ':tracks_count' => $tracksCount,
+            ':is_public'    => $isPublic ? 1 : 0,
         ]);
     }
 
     /**
-     * Récupère toutes les playlists Spotify stockées en base, triées par date de création.
+     * Récupère toutes les playlists stockées en base.
+     *
+     * @return array
      */
     public function getAllSpotify(): array
     {
@@ -53,21 +56,5 @@ class Playlist
             ORDER BY created_at DESC
         ");
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-
-    /**
-     * Récupère les données d'une playlist Spotify par son ID Spotify.
-     */
-    public function findBySpotifyId(string $spotifyId): ?array
-    {
-        $stmt = $this->pdo->prepare("
-            SELECT spotify_id, nom, description, owner, image, tracks_count, is_public, created_at
-            FROM spotify_playlists
-            WHERE spotify_id = :sid
-            LIMIT 1
-        ");
-        $stmt->execute([':sid' => $spotifyId]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $row ?: null;
     }
 }

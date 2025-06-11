@@ -1,83 +1,79 @@
 <?php
 // app/Routes/Router.php
 
+// Gestion de la connexion à la BDD
+require_once __DIR__ . '/../../config/database.php';
+
+// Chargement des contrôleurs
+require_once __DIR__ . '/../Controllers/SpotifyController.php';
+require_once __DIR__ . '/../Controllers/PlaylistController.php';
+require_once __DIR__ . '/../Controllers/MusiqueController.php';
+require_once __DIR__ . '/../Controllers/YoutubeController.php';
+
 class Router
 {
     public function handleRequest()
     {
+        // Instanciation unique de la connexion PDO
+        $db   = getDatabaseConnection();   
         $page = $_GET['page'] ?? null;
 
         switch ($page) {
+            case 'connection':
+                (new SpotifyController())->connection();
+                break;
+
+            case 'spotifyCallback':
+                (new SpotifyController())->spotifyCallback();
+                break;
+
+            case 'fetchPlaylists':
+                (new PlaylistController($db))->fetchAndStoreFromSpotify();
+                break;
+
+            case 'allPlaylists':
+                (new PlaylistController($db))->getAllSpotify();
+                break;
+
+            case 'fetchMusics':
+                (new MusiqueController($db))
+                    ->fetchAndStoreMusicsFromSpotify($_GET['playlistId'] ?? null);
+                break;
+
+            case 'musiqueByPlaylist':
+                (new MusiqueController($db))
+                    ->musiqueByPlaylist($_GET['playlistId'] ?? null);
+                break;
+
+            case 'allMusique':
+                (new MusiqueController($db))->allMusique();
+                break;
+
             case 'setup':
                 require_once __DIR__ . '/../../setup.php';
                 break;
 
-            case 'allMusique':
-                require_once __DIR__ . '/../Controllers/MusiqueController.php';
-                require_once __DIR__ . '/../../config/database.php';
-                $pdo = getDatabaseConnection();
-                $musiqueCtrl = new MusiqueController($pdo);
-                $musiqueCtrl->allMusique();
+            case 'fetchYoutube':
+                (new YoutubeController($db))->fetchAndStore();
                 break;
 
-            case 'musiqueByPlaylist':
-                require_once __DIR__ . '/../Controllers/MusiqueController.php';
-                require_once __DIR__ . '/../../config/database.php';
-                $pdo = getDatabaseConnection();
-                $musiqueCtrl = new MusiqueController($pdo);
-                $spotifyPlaylistId = $_GET['playlistId'] ?? null;
-                $musiqueCtrl->musiqueByPlaylist($spotifyPlaylistId);
+            case 'fetchYoutubeAll':
+                (new YoutubeController($db))->fetchAndStoreAll();
                 break;
 
-            case 'recupPlaylists':
-            case 'allPlaylists':
-                require_once __DIR__ . '/../Controllers/PlaylistController.php';
-                require_once __DIR__ . '/../../config/database.php';
-                $pdo = getDatabaseConnection();
-                $playlistCtrl = new PlaylistController($pdo);
-                $playlistCtrl->getAllSpotify();
+            case 'getMusiqueNoYoutube':
+                (new YoutubeController($db))->getMusiqueWithoutYoutube();
                 break;
 
-            case 'insertPlaylist':
-                require_once __DIR__ . '/../Controllers/PlaylistController.php';
-                require_once __DIR__ . '/../../config/database.php';
-                $pdo = getDatabaseConnection();
-                $playlistCtrl = new PlaylistController($pdo);
-                $sid       = $_POST['spotifyId']   ?? null;
-                $nom       = $_POST['nom']         ?? null;
-                $descr     = $_POST['description'] ?? null;
-                $owner     = $_POST['owner']       ?? null;
-                $img       = $_POST['imageURL']    ?? null;
-                $count     = intval($_POST['tracksCount'] ?? 0);
-                $pub       = ($_POST['isPublic'] ?? '0') === '1';
-                $playlistCtrl->insertIfNotExistsSpotify(
-                    $sid, $nom, $descr, $owner, $img, $count, $pub
-                );
-                break;
-            case 'fetchPlaylists':
-    require_once __DIR__ . '/../Controllers/PlaylistController.php';
-    require_once __DIR__ . '/../../config/database.php';
-    $pdo = getDatabaseConnection();
-    $playlistCtrl = new PlaylistController($pdo);
-    $playlistCtrl->fetchAndStoreFromSpotify();
-    break;
-
-            case 'connection':
-                require_once __DIR__ . '/../Controllers/SpotifyController.php';
-                $spotifyCtrl = new SpotifyController();
-                $spotifyCtrl->connection();
-                break;
-
-            case 'spotifyCallback':
-                require_once __DIR__ . '/../Controllers/SpotifyController.php';
-                $spotifyCtrl = new SpotifyController();
-                $spotifyCtrl->spotifyCallback();
+            case 'getYoutubeIds':
+                (new YoutubeController($db))->getYoutubeIds();
                 break;
 
             default:
                 http_response_code(404);
                 header('Content-Type: application/json; charset=utf-8');
                 echo json_encode(['error' => 'Route non trouvée']);
+                break;
         }
     }
 }
