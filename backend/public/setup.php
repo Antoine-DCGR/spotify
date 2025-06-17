@@ -28,13 +28,15 @@ $pdo->exec("
 $pdo->exec("
   CREATE TABLE `musiques` (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    spotify_track_id VARCHAR(100) NOT NULL,
+    spotify_track_id VARCHAR(100) NULL DEFAULT NULL,
     titre VARCHAR(255) NOT NULL,
     artiste VARCHAR(255) NOT NULL,
-    album VARCHAR(255) NOT NULL,
+    album VARCHAR(255) NULL DEFAULT NULL,
+    genre VARCHAR(255) NULL DEFAULT NULL,
     duree_ms INT NOT NULL,
     type ENUM('track','episode') NOT NULL DEFAULT 'track',
     id_youtube VARCHAR(20)   DEFAULT NULL,
+    audio_path varchar(255) DEFAULT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_spotify_track_id (spotify_track_id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

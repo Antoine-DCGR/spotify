@@ -60,25 +60,43 @@ class YoutubeController
      * Recherche et stocke l'ID YouTube pour toutes les musiques sans vidéo (batch)
      */
     public function fetchAndStoreAll(): void
-    {
-        $list    = $this->musiqueModel->getAllWithoutYoutube();
-        $results = [];
+{
+    // 1) Lecture des paramètres de pagination
+    $page    = isset($_GET['page'])     ? max(1, (int)$_GET['page'])         : 1;
+    $perPage = isset($_GET['per_page']) ? max(1, (int)$_GET['per_page'])     : 10;
+    $offset  = ($page - 1) * $perPage;
 
-        foreach ($list as $item) {
-            $query   = $item['titre'] . ' ' . $item['artiste'];
-            $videoId = $this->ytService->getFirstVideoId($query);
+    // 2) Nombre total de musiques sans YouTube
+    $total      = $this->musiqueModel->countWithoutYoutube();
+    // 3) Récupère juste la page courante
+    $list       = $this->musiqueModel->getWithoutYoutubePaginated($offset, $perPage);
 
-            if ($videoId) {
-                $this->musiqueModel->updateYoutubeVideoId((int)$item['id'], $videoId);
-                $results[$item['id']] = $videoId;
-            } else {
-                $results[$item['id']] = null;
-            }
+    $results    = [];
+    foreach ($list as $item) {
+        $query   = $item['titre'] . ' ' . $item['artiste'];
+        $videoId = $this->ytService->getFirstVideoId($query);
+
+        if ($videoId) {
+            $this->musiqueModel->updateYoutubeVideoId((int)$item['id'], $videoId);
+            $results[$item['id']] = $videoId;
+        } else {
+            $results[$item['id']] = null;
         }
-
-        header('Content-Type: application/json');
-        echo json_encode($results);
     }
+
+    // 4) Calcul du nombre de pages
+    $totalPages = (int)ceil($total / $perPage);
+
+    // 5) Réponse JSON paginée
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'page'        => $page,
+        'per_page'    => $perPage,
+        'total'       => $total,
+        'total_pages' => $totalPages,
+        'data'        => $results,
+    ], JSON_UNESCAPED_UNICODE);
+}
 
     /**
      * Retourne une liste paginée des musiques sans ID YouTube
@@ -118,5 +136,39 @@ class YoutubeController
 
         header('Content-Type: application/json');
         echo json_encode($items);
+    }
+     public function fetchYoutubeAllPaginated(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        $perPage = isset($_GET['per_page'])
+            ? min(100, max(1, (int)$_GET['per_page']))
+            : 50;
+        $page   = 1;
+        $offset = 0;
+        $allResults = [];
+
+        // boucle jusqu'à ce qu'on récupère 0 lignes
+        do {
+            $offset      = ($page - 1) * $perPage;
+            $pageItems   = $this->musiqueModel
+                                ->getWithoutYoutubePaginated($offset, $perPage);
+            $count       = count($pageItems);
+
+            foreach ($pageItems as $item) {
+                $id    = (int)$item['id'];
+                $query = "{$item['titre']} {$item['artiste']}";
+                $videoId = $this->ytService->getFirstVideoId($query);
+
+                if ($videoId) {
+                    $this->musiqueModel->updateYoutubeVideoId($id, $videoId);
+                }
+                $allResults[$id] = $videoId;
+            }
+
+            $page++;
+        } while ($count === $perPage);
+
+        echo json_encode($allResults, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 }

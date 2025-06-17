@@ -173,4 +173,93 @@ class Musique
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+    /**
+     * Met à jour le chemin du fichier audio pour une musique.
+     */
+    public function updateAudioPath(int $id, string $path): bool
+    {
+        $stmt = $this->pdo->prepare("
+            UPDATE musiques
+            SET audio_path = :path
+            WHERE id = :id
+        ");
+        return $stmt->execute([
+            ':path' => $path,
+            ':id'   => $id,
+        ]);
+    }
+    public function findByYoutubeId(string $yt): ?array
+{
+    $stmt = $this->pdo->prepare("
+        SELECT * 
+        FROM musiques 
+        WHERE id_youtube = :yt
+        LIMIT 1
+    ");
+    $stmt->execute([':yt' => $yt]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+/**
+ * Récupère toutes les musiques ayant un id_youtube renseigné
+ * et un audio_path à NULL.
+ *
+ * @return array<int,array{id:int,id_youtube:string}>
+ */
+ public function getWithoutAudioPaginated(int $offset, int $limit): array
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT id, id_youtube
+               FROM musiques
+              WHERE id_youtube IS NOT NULL
+                AND audio_path IS NULL
+              ORDER BY id
+              LIMIT :off, :lim"
+        );
+        $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
+        $stmt->bindValue(':lim', $limit,  PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+public function countWithoutAudio(): int
+    {
+        $stmt = $this->pdo->query(
+            "SELECT COUNT(*) 
+               FROM musiques 
+              WHERE id_youtube IS NOT NULL 
+                AND audio_path IS NULL"
+        );
+        return (int)$stmt->fetchColumn();
+    }
+     public function updateYoutubeVideoId(int $id, string $videoId): bool
+    {
+        $stmt = $this->pdo->prepare("
+            UPDATE musiques
+               SET id_youtube = :vid
+             WHERE id = :id
+        ");
+        return $stmt->execute([
+            ':vid' => $videoId,
+            ':id'  => $id,
+        ]);
+    }
+
+    /**
+     * Récupère toutes les musiques avec un YouTube ID
+     * et sans audio_path (à télécharger).
+     *
+     * @return array<int,array{id:int,id_youtube:string}>
+     */
+    public function getAllWithoutAudio(): array
+    {
+        $stmt = $this->pdo->query("
+            SELECT id, id_youtube
+              FROM musiques
+             WHERE id_youtube IS NOT NULL
+               AND audio_path IS NULL
+        ");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+
 }

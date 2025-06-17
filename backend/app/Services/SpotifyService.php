@@ -149,4 +149,27 @@ class SpotifyService
 
         return $all;
     }
+    /**
+ * Récupère les genres d'un artiste Spotify.
+ */
+public function getArtistGenres(string $accessToken, string $artistId): array
+{
+    $url = "https://api.spotify.com/v1/artists/{$artistId}";
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        "Authorization: Bearer {$accessToken}"
+    ]);
+    $resp = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode !== 200) {
+        throw new Exception("Erreur GET /artists/{$artistId} (HTTP {$httpCode}) : {$resp}");
+    }
+
+    $data = json_decode($resp, true);
+    return $data['genres'] ?? [];
+}
+
 }

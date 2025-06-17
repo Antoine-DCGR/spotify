@@ -169,4 +169,14 @@ class MusiqueController
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['musique' => $all], JSON_UNESCAPED_UNICODE);
     }
+    public function show(int $id): void
+{
+    header('Content-Type: application/json; charset=utf-8');
+
+    $all = $this->musiqueModel->findById($id);
+    echo json_encode(['musique' => $all], JSON_UNESCAPED_UNICODE);
+
+    
+}
+    
 }
