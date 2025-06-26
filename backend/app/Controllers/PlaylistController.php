@@ -118,9 +118,9 @@ class PlaylistController
      * Renvoie en JSON toutes les playlists stockées.
      * URL : ?page=allPlaylists
      */
-    public function getAllSpotify()
+    public function getPlaylists()
     {
-        $all = $this->playlistModel->getAllSpotify();
+        $all = $this->playlistModel->getPlaylists();
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['playlists' => $all], JSON_UNESCAPED_UNICODE);
     }

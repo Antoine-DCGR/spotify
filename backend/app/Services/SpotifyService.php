@@ -171,5 +171,38 @@ public function getArtistGenres(string $accessToken, string $artistId): array
     $data = json_decode($resp, true);
     return $data['genres'] ?? [];
 }
+  public function getArtistsInfo(string $accessToken, array $artistIds): array
+    {
+        $result = [];
+        // Spotify limite à 50 IDs par appel
+        foreach (array_chunk($artistIds, 50) as $chunk) {
+            $idsParam = implode(',', $chunk);
+            $url = "https://api.spotify.com/v1/artists?ids={$idsParam}";
+
+            $ctx = stream_context_create([
+                'http' => [
+                    'method' => 'GET',
+                    'header' => "Authorization: Bearer {$accessToken}\r\n"
+                ]
+            ]);
+
+            $res = @file_get_contents($url, false, $ctx);
+            if (! $res) {
+                // Taux limité ou autre erreur : on peut lire Retry-After ou laisser l’exception
+                $info = $http_response_header[0] ?? '';
+                if (preg_match('/429/', $info)) {
+                    throw new Exception("Rate limit exceeded on batch artist fetch");
+                }
+                throw new Exception("Erreur GET {$url} : {$info}");
+            }
+
+            $json = json_decode($res, true);
+            foreach ($json['artists'] as $artist) {
+                $result[$artist['id']] = $artist;
+            }
+        }
+
+        return $result;
+    }
 
 }

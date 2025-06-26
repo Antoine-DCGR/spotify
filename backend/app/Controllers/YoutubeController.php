@@ -59,7 +59,7 @@ class YoutubeController
     /**
      * Recherche et stocke l'ID YouTube pour toutes les musiques sans vidéo (batch)
      */
-    public function fetchAndStoreAll(): void
+    public function fetchYoutubeIdAll(): void
 {
     // 1) Lecture des paramètres de pagination
     $page    = isset($_GET['page'])     ? max(1, (int)$_GET['page'])         : 1;
@@ -102,7 +102,7 @@ class YoutubeController
      * Retourne une liste paginée des musiques sans ID YouTube
      * GET params : page (défaut=1), per_page (défaut=10)
      */
-    public function getMusiqueWithoutYoutube(): void
+    public function getMusiqueWithoutYoutubeId(): void
     {
         $page    = isset($_GET['page'])     ? max(1, (int)$_GET['page'])     : 1;
         $perPage = isset($_GET['per_page']) ? max(1, (int)$_GET['per_page']) : 10;

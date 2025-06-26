@@ -48,7 +48,7 @@ class Playlist
      *
      * @return array
      */
-    public function getAllSpotify(): array
+    public function getPlaylists(): array
     {
         $stmt = $this->pdo->query("
             SELECT spotify_id, nom, description, owner, image, tracks_count, is_public, created_at
