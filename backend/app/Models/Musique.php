@@ -300,12 +300,13 @@ public function countWithoutAudio(): int
 
     public function getPaginatedTasks(int $limit, int $offset): array
     {
-        $stmt = $this->pdo->prepare(""
+        $stmt = $this->pdo->prepare(
+            "
             SELECT * FROM musiques
             WHERE audio_path IS NULL
             AND youtube_id IS NOT NULL
             LIMIT :limit OFFSET :offset
-        "");
+        ");
         $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
         $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
