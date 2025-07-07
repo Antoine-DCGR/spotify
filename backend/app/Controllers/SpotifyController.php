@@ -1,142 +1,86 @@
 <?php
 // app/Controllers/SpotifyController.php
 
-/**
- * Ce contrôleur gère l’authentification OAuth avec Spotify :
- *  - connection() : redirige l’utilisateur vers l’URL d’autorisation Spotify
- *  - callback()   : réceptionne le `code` renvoyé par Spotify, échange contre un access token
- *
- * Pour que cela fonctionne, vous devez avoir défini dans vos variables d’environnement (docker-compose.yml)
- *  SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI
- */
+declare(strict_types=1);
+
+require_once __DIR__ . '/../Services/SpotifyService.php';
 
 class SpotifyController
 {
-    private $clientId;
-    private $clientSecret;
-    private $redirectUri;
+    private SpotifyService $service;
+    private string $redirectUri;
 
     public function __construct()
     {
-        // Lecture depuis les variables d’environnement Docker
-        $this->clientId     = getenv('CLIENT_SPOTIFY_ID')     ;
-        $this->clientSecret = getenv('CLIENT_SPOTIFY_SECRET') ;
-        $this->redirectUri  = getenv('SPOTIFY_REDIRECT_URI')  ;
+        // Instancie le service et récupère l'URI de redirection depuis l'env
+        $this->service     = new SpotifyService();
+        $this->redirectUri = getenv('SPOTIFY_REDIRECT_URI') ?: '';
     }
 
     /**
-     * Première étape : redirige vers Spotify pour obtenir l’autorisation de l’utilisateur.
-     * URL appelable : ?page=connection
+     * Callback OAuth Spotify
+     *
+     * Échange le code reçu en tokens (access + refresh) et renvoie du JSON.
+     * Route attendue : GET /api/spotify/callback?code=…&state=…
      */
-    public function connection()
+    public function spotifyCallback(): void
     {
-        if (!$this->clientId || !$this->redirectUri) {
-            http_response_code(500);
-            echo "Erreur : SPOTIFY_CLIENT_ID ou SPOTIFY_REDIRECT_URI non définis.";
-            exit;
+        // Permettre les requêtes CORS si besoin
+        header('Access-Control-Allow-Origin: *');
+        header('Content-Type: application/json');
+
+        try {
+            if (empty($_GET['code'])) {
+                throw new Exception('Paramètre "code" manquant');
+            }
+
+            $code = $_GET['code'];
+            $tokens = $this->service->requestAccessTokenWithCode($code, $this->redirectUri);
+
+            echo json_encode($tokens);
+        } catch (Exception $e) {
+            http_response_code(400);
+            echo json_encode([
+                'error'   => true,
+                'message' => $e->getMessage(),
+            ]);
         }
 
-        // Construire l’URL d’autorisation Spotify
-        $scopes = urlencode('playlist-read-private playlist-read-collaborative');
-        $state  = bin2hex(random_bytes(8));
-
-        $authUrl = sprintf(
-            'https://accounts.spotify.com/authorize?response_type=code&client_id=%s&scope=%s&redirect_uri=%s&state=%s',
-            $this->clientId,
-            $scopes,
-            urlencode($this->redirectUri),
-            $state
-        );
-
-        // Stocker le state en session pour vérifier au retour (optionnel)
-        session_start();
-        $_SESSION['spotify_oauth_state'] = $state;
-
-        // Redirection
-        header("Location: $authUrl");
         exit;
     }
 
     /**
-     * Callback Spotify : Spotify renvoie le "code" en GET, on l’échange contre un access token.
-     * URL appelable : ?page=spotifyCallback&code=...&state=...
+     * Rafraîchissement de token
+     *
+     * Reçoit en POST { "refresh_token": "…" } et renvoie le nouveau access_token (+ éventuellement nouveau refresh_token).
+     * Route attendue : POST /api/spotify/refresh
      */
-    public function spotifyCallback()
+    public function refresh(): void
     {
-        session_start();
-        // Vérification du state
-        $returnedState = $_GET['state'] ?? null;
-        $expectedState = $_SESSION['spotify_oauth_state'] ?? null;
-        unset($_SESSION['spotify_oauth_state']);
+        header('Access-Control-Allow-Origin: *');
+        header('Content-Type: application/json');
 
-        if (!$returnedState || !$expectedState || $returnedState !== $expectedState) {
+        $body = json_decode((string) file_get_contents('php://input'), true);
+        if (empty($body['refresh_token'])) {
             http_response_code(400);
-            echo "Échec CSRF / state invalide.";
+            echo json_encode([
+                'error'   => true,
+                'message' => 'Paramètre "refresh_token" manquant',
+            ]);
             exit;
         }
 
-        $code = $_GET['code'] ?? null;
-        if (!$code) {
+        try {
+            $newTokens = $this->service->refreshAccessToken($body['refresh_token']);
+            echo json_encode($newTokens);
+        } catch (Exception $e) {
             http_response_code(400);
-            echo "Erreur : code manquant.";
-            exit;
+            echo json_encode([
+                'error'   => true,
+                'message' => $e->getMessage(),
+            ]);
         }
 
-        // Préparer la requête POST pour échanger code → access_token
-        $tokenUrl = 'https://accounts.spotify.com/api/token';
-        $postData = http_build_query([
-            'grant_type'    => 'authorization_code',
-            'code'          => $code,
-            'redirect_uri'  => $this->redirectUri,
-            'client_id'     => $this->clientId,
-            'client_secret' => $this->clientSecret,
-        ]);
-
-        $opts = [
-            'http' => [
-                'method'  => 'POST',
-                'header'  => "Content-Type: application/x-www-form-urlencoded\r\n" .
-                             "Content-Length: " . strlen($postData) . "\r\n",
-                'content' => $postData,
-            ],
-        ];
-        $context  = stream_context_create($opts);
-        $response = file_get_contents($tokenUrl, false, $context);
-        if ($response === false) {
-            http_response_code(500);
-            echo "Erreur lors de la requête de token.";
-            exit;
-        }
-
-        $data = json_decode($response, true);
-        if (isset($data['error'])) {
-            http_response_code(500);
-            echo "Erreur Spotify : " . htmlspecialchars($data['error_description'] ?? $data['error']);
-            exit;
-        }
-
-        // On récupère les tokens et on les stocke en session (ou en BDD selon votre besoin)
-        $accessToken  = $data['access_token']  ?? null;
-        $refreshToken = $data['refresh_token'] ?? null;
-        $expiresIn    = $data['expires_in']    ?? 0;
-
-        if (!$accessToken) {
-            http_response_code(500);
-            echo "Impossible de récupérer l’access token.";
-            exit;
-        }
-
-        // Exemple : stockage en session
-        session_start();
-        $_SESSION['spotify_access_token']  = $accessToken;
-        $_SESSION['spotify_refresh_token'] = $refreshToken;
-        $_SESSION['spotify_expires_in']    = time() + $expiresIn;
-
-        // Rediriger vers une page interne ou renvoyer un JSON
-        echo "<h1>Authentification Spotify réussie !</h1>";
-        echo "<p>Access Token : " . htmlspecialchars($accessToken) . "</p>";
-        // Vous pouvez rediriger vers l’accueil ou une route front-end
-        // header("Location: /index.php?page=someRoute");
         exit;
     }
 }

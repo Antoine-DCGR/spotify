@@ -44,9 +44,6 @@ class SpotifyService
             throw new Exception("Erreur échange code (HTTP {$httpCode}) : {$resp}");
         }
         $data = json_decode($resp, true);
-        if (!isset($data['access_token'], $data['refresh_token'], $data['expires_in'])) {
-            throw new Exception("Réponse inattendue Spotify : {$resp}");
-        }
         return [
             'access_token'  => $data['access_token'],
             'refresh_token' => $data['refresh_token'],
@@ -54,9 +51,6 @@ class SpotifyService
         ];
     }
 
-    /**
-     * Rafraîchit un access_token à partir d’un refresh_token.
-     */
     public function refreshAccessToken(string $refreshToken): array
     {
         $credentials = base64_encode("{$this->clientId}:{$this->clientSecret}");
@@ -79,13 +73,8 @@ class SpotifyService
         if ($httpCode !== 200) {
             throw new Exception("Erreur rafraîchissement token (HTTP {$httpCode}) : {$resp}");
         }
-        $data = json_decode($resp, true);
-        if (!isset($data['access_token'], $data['expires_in'])) {
-            throw new Exception("Réponse inattendue Spotify : {$resp}");
-        }
-        return $data;
+        return json_decode($resp, true);
     }
-
     /**
      * Récupère toutes les playlists de l’utilisateur (boucle pagination).
      */
