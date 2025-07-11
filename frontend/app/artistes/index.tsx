@@ -7,10 +7,10 @@ import {
   Text,
   View
 } from 'react-native';
-import { useAuth } from '../context/AuthContext';
-import { getArtistes } from '../src/api/api';
-import Header from '../src/components/Header';
-import NowPlayingBanner from '../src/components/NowPlayingBanner';
+import { useAuth } from '../../context/AuthContext';
+import { getArtistes } from '../../src/api/api';
+import Header from '../../src/components/Header';
+import NowPlayingBanner from '../../src/components/NowPlayingBanner';
 
 interface Artist {
   id: number;

@@ -2,21 +2,27 @@
 
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
-import { useAuth } from '../context/AuthContext';
+import { Alert, Button, StyleSheet, Text, View } from 'react-native';
+import { logoutSpotify } from '../src/api/api';
 
 export default function LogoutScreen() {
   const router = useRouter();
-  const { logout } = useAuth();
 
   const handleLogout = async () => {
-    await logout();
-    router.replace('/'); // redirige vers la home
+    try {
+      await logoutSpotify();
+      Alert.alert('Déconnexion', 'Déconnexion réussie !');
+      router.replace('/'); // Redirige vers la home après logout
+    } catch (e: any) {
+      Alert.alert('Erreur', e.message || 'Impossible de se déconnecter');
+    }
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>Tu es sur le point de te déconnecter de Spotify.</Text>
+      <Text style={styles.text}>
+        Tu es sur le point de te déconnecter de Spotify.
+      </Text>
       <Button title="Se déconnecter" color="#e74c3c" onPress={handleLogout} />
       <Button title="Annuler" onPress={() => router.back()} />
     </View>

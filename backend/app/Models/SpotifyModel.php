@@ -46,4 +46,9 @@ class SpotifyModel
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
         return $row ?: null;
     }
+    public function deleteTokenByUserId(int $userId): void
+{
+    $stmt = $this->db->prepare('DELETE FROM oauth_tokens WHERE user_id = :userId');
+    $stmt->execute([':userId' => $userId]);
+}
 }

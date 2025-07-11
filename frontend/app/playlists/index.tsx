@@ -1,19 +1,21 @@
 // src/screens/playlist.tsx
 
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
+  Pressable,
   StyleSheet,
   Text,
   View
 } from 'react-native';
-import { useAuth } from '../context/AuthContext';
-import { getPlaylist, Playlist } from '../src/api/api';
-import Header from '../src/components/Header';
-import NowPlayingBanner from '../src/components/NowPlayingBanner';
+import { useAuth } from '../../context/AuthContext';
+import { getPlaylist, Playlist } from '../../src/api/api';
+import Header from '../../src/components/Header';
+import NowPlayingBanner from '../../src/components/NowPlayingBanner';
 
 export default function PlaylistsScreen() {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -29,10 +31,12 @@ export default function PlaylistsScreen() {
     loadingProfile,
   } = useAuth();
 
+  const router = useRouter();
+
   const loadPlaylists = async () => {
     setLoading(true);
     try {
-      const pl = await getPlaylist();   // <-- ICI, CORRECT !
+      const pl = await getPlaylist();   // <-- API call pour les playlists
       setPlaylists(pl);
     } catch (err: any) {
       Alert.alert('Erreur', err.message || 'Impossible de charger les playlists.');
@@ -75,7 +79,10 @@ export default function PlaylistsScreen() {
         keyExtractor={item => item.spotify_id}
         contentContainerStyle={styles.listContent}
         renderItem={({ item }) => (
-          <View style={styles.playlistItem}>
+          <Pressable
+            onPress={() => router.push(`/playlists/${item.spotify_id}`)} // navigation dynamique
+            style={styles.playlistItem}
+          >
             {item.image ? (
               <Image source={{ uri: item.image }} style={styles.playlistImage} />
             ) : (
@@ -92,7 +99,7 @@ export default function PlaylistsScreen() {
                 {item.tracks_count} titres
               </Text>
             </View>
-          </View>
+          </Pressable>
         )}
         ListEmptyComponent={
           <View style={styles.empty}>

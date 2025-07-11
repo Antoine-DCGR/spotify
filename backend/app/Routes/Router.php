@@ -83,6 +83,14 @@ class Router
             return;
         }
 
+
+        // ==================== SYNCHRONISATION ====================
+         $params = [];
+        if ($method === 'POST' && routeMatch('/sync/syncAll', $uri, $params)) {
+            (new SyncController($db))->syncAll();
+            return;
+        }
+
         // ==================== MUSIQUES ====================
         // Liste toutes les musiques
         $params = [];
@@ -90,6 +98,11 @@ class Router
             (new MusiqueController($db))->allMusique();
             return;
         }
+        $params = [];
+if ($method === 'GET' && routeMatch('/musique/getMusiqueByPlaylist/{spotify_id}', $uri, $params)) {
+    (new MusiqueController($db))->musiqueByPlaylist($params['spotify_id']);
+    return;
+}
 
         // Détail d'une musique par id
         $params = [];
@@ -104,6 +117,14 @@ class Router
             (new MusiqueController($db))->fetchAndStoreMusicsFromSpotify($params['playlistId']);
             return;
         }
+
+         $params = [];
+        if ($method === 'GET' && routeMatch('/musique/addMusiqueByPlaylists', $uri, $params)) {
+            (new MusiqueController($db))->fetchAndStoreMusicsAllPlaylistsFromSpotify();
+            return;
+        }
+
+        
 
         // ==================== ALBUMS ====================
         // Liste tous les albums
@@ -159,6 +180,10 @@ if ($method === 'POST' && routeMatch('/spotify/refresh', $uri, $params)) {
 // Ensuite ta route existante pour /spotify/me
 if ($method === 'GET' && routeMatch('/spotify/me', $uri)) {
     (new SpotifyController())->getSpotifyMe();
+    return;
+}
+if ($method === 'POST' && routeMatch('/spotify/logout', $uri)) {
+    (new SpotifyController())->logout();
     return;
 }
 

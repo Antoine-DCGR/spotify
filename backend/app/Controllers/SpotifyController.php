@@ -289,4 +289,33 @@ class SpotifyController
         error_log('→ [SpotifyController/getSpotifyMe] Fini, profil envoyé');
         exit;
     }
+    public function logout(): void
+{
+    header('Access-Control-Allow-Origin: *');
+    header('Content-Type: application/json');
+    $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    if (!str_starts_with($authHeader, 'Bearer ')) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Authorization header manquant ou invalide']);
+        exit;
+    }
+    $jwt = substr($authHeader, 7);
+    try {
+        $payload = Jwt::decode($jwt, $this->jwtSecret);
+    } catch (\Exception $e) {
+        http_response_code(401);
+        echo json_encode(['error' => 'JWT invalide : ' . $e->getMessage()]);
+        exit;
+    }
+    $userId = $payload['sub'] ?? null;
+    if (!$userId) {
+        http_response_code(400);
+        echo json_encode(['error' => 'user_id manquant dans le JWT']);
+        exit;
+    }
+    // On supprime le token de la BDD
+    $this->service->getTokenModel()->deleteTokenByUserId((int)$userId);
+    echo json_encode(['message' => 'Déconnexion effectuée']);
+    exit;
+}
 }

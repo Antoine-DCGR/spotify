@@ -121,14 +121,26 @@ export async function getSpotifyProfile(): Promise<any | null> {
 /**
  * Synchronise les playlists depuis ton backend.
  */
-export async function fetchPlaylists(): Promise<Playlist[]> {
-  const res = await fetchWithJwt('/playlist/fetchPlaylists');
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status} - ${res.statusText}`);
+export async function syncAll(): Promise<any> {
+  const res = await fetchWithJwt('/sync/syncAll', { method: 'POST' });
+  const ct = res.headers.get('content-type') || '';
+  const text = await res.text().catch(() => '');
+  console.log('📋 Content-Type reçu :', ct);
+  console.log('💥 BODY BRUT reçu :', text);
+
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = text;
   }
-  const json = await res.json();
-  return json.playlists as Playlist[];
+
+  if (!res.ok) {
+    throw new Error(data?.error || 'Erreur lors de la synchronisation');
+  }
+  return data;
 }
+
 
 export async function getArtistes(): Promise<Artist[]> {
   const res = await fetchWithJwt('/artiste/getArtistes');
@@ -147,4 +159,53 @@ export async function getPlaylist(): Promise<Playlist[]> {
   }
   const json = await res.json();
   return json.playlists as Playlist[];
+}
+
+export async function logoutSpotify() {
+  const jwt = await SecureStore.getItemAsync(JWT_KEY);
+  if (!jwt) return;
+
+  // POST ou DELETE selon ton choix d'implémentation côté back
+  const res = await fetchWithJwt('/spotify/logout', {
+    method: 'POST',  // ou 'DELETE'
+  });
+
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(txt || 'Erreur lors de la déconnexion');
+  }
+
+  // Supprime le JWT local, même si le back l'a fait aussi
+  await SecureStore.deleteItemAsync(JWT_KEY);
+}
+
+export async function getMusicsByPlaylist(playlistId: string): Promise<Music[]> {
+  const res = await fetchWithJwt(`/musique/getMusiqueByPlaylist/${playlistId}`);
+  if (!res.ok) {
+    throw new Error('Erreur HTTP: ' + res.status);
+  }
+  const json = await res.json();
+  return json.musique as Music[];
+}
+
+export async function fetchPlaylists(): Promise<Playlist[]> {
+  const res = await fetchWithJwt('/playlist/fetchPlaylists');
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} - ${res.statusText}`);
+  }
+  const json = await res.json();
+  return json.playlists as Playlist[];
+}
+export async function fetchAndStoreMusicsForAllPlaylistsFromSpotify(): Promise<Music[]> {
+  
+  const res = await fetchWithJwt('/musique/addMusiqueByPlaylists');
+  const ct = res.headers.get('content-type') || '';
+  const text = await res.text().catch(() => '');
+  console.log('📋 Content-Type reçu :', ct);
+  console.log('💥 BODY BRUT reçu :', text);
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} - ${res.statusText}`);
+  }
+  const json = await res.json();
+  return json.playlists as Music[];
 }

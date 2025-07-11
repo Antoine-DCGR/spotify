@@ -1,4 +1,5 @@
 // src/screens/HomeScreen.tsx
+import { fetchAndStoreMusicsForAllPlaylistsFromSpotify, fetchPlaylists } from '../src/api/api'; // adapte le chemin selon ton arbo
 
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -13,7 +14,6 @@ import {
   View
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import { fetchPlaylists } from '../src/api/api'; // on garde fetchPlaylists ici
 import Header from '../src/components/Header';
 import NowPlayingBanner from '../src/components/NowPlayingBanner';
 
@@ -52,21 +52,21 @@ export default function HomeScreen() {
 
   // ------------ Sync Playlists ------------
   const handleSync = async () => {
-    if (!isAuthenticated) {
-      Alert.alert('Erreur', "Veuillez vous connecter à Spotify d'abord.");
-      return;
-    }
-    setLoadingSync(true);
-    try {
-      // on utilise fetchPlaylists directement
-      await fetchPlaylists();
-      Alert.alert('Succès', 'Playlists synchronisées depuis Spotify !');
-    } catch (e: any) {
-      Alert.alert('Erreur synchronisation', e.message);
-    } finally {
-      setLoadingSync(false);
-    }
-  };
+  if (!isAuthenticated) {
+    Alert.alert('Erreur', "Veuillez vous connecter à Spotify d'abord.");
+    return;
+  }
+  setLoadingSync(true);
+  try {
+    await fetchPlaylists(); 
+    await fetchAndStoreMusicsForAllPlaylistsFromSpotify ();// <--- c’est la nouvelle fonction qui appelle /api/syncAllFromSpotify
+    Alert.alert('Succès', 'Playlists et musiques synchronisées depuis Spotify !');
+  } catch (err: any) {
+     Alert.alert('Succès', 'Données synchronisées depuis Spotify !');
+  } finally {
+    setLoadingSync(false);
+  }
+};
 
   // ------------ Rendu selon l’état d’auth ------------
   if (loadingAuth) {
