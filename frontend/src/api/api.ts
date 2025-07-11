@@ -1,93 +1,150 @@
-// frontend/src/api.ts
+// src/api.ts
 
-export const API_URL = "http://192.168.1.168:8000"; // Mets ton IP locale ici
+import { fetchWithJwt } from '@/utils/fetchWithJwt';
+import * as SecureStore from 'expo-secure-store';
+import { JWT_KEY } from '../config'; // ← chemin correct
 
+// Types
 export type Playlist = {
-  spotify_id: string;   // ID Spotify (unique)
+  spotify_id: string;
   nom: string;
   description: string | null;
   owner: string;
   image: string | null;
   tracks_count: number;
   is_public: boolean;
-  created_at: string;   // ou Date si vous faites un parsing manuel
+  created_at: string;
 };
 
 export type Music = {
-  id: number;            // clé primaire interne (AUTO_INCREMENT)
+  id: number;
   spotify_track_id: string;
   titre: string;
   artiste: string;
   album: string;
   duree_ms: number;
-  created_at: string;    // ou Date selon votre parsing
+  created_at: string;
 };
 
 export interface Artist {
-  id: number;                  // identifiant interne
-  spotify_artist_id: string;   // ID Spotify
-  nom: string;                 // Nom de l'artiste
-  genre: string | null;        // Genre musical (optionnel)
-  created_at: string;          // Date de création en base
+  id: number;
+  spotify_artist_id: string;
+  nom: string;
+  genre: string | null;
+  created_at: string;
 }
 
 /**
- * Récupère la liste des artistes formatée par l'API
- * L'API renvoie { artists: Artist[] }
+ * Récupère le profil Spotify depuis ton backend.
+ * - Si pas de JWT stocké, renvoie `null`.
+ * - Si 401, tente un refresh puis réessaie.
+ * - Vérifie le Content-Type avant JSON.parse.
  */
-export async function getArtistes(): Promise<Artist[]> {
-  const res = await fetch(`${API_URL}/artiste/getArtistes`);
-  if (!res.ok) {
-    throw new Error(`Erreur getArtistes: ${res.statusText}`);
+export async function getSpotifyProfile(): Promise<any | null> {
+  console.log('🔍 getSpotifyProfile démarré');
+
+  // 1) Récupère le JWT
+  const jwt = await SecureStore.getItemAsync(JWT_KEY);
+  console.log('🔑 JWT extrait :', jwt);
+  if (!jwt) {
+    console.error('🚫 Pas de JWT, on stoppe getSpotifyProfile');
+    return null;
   }
-  const json = await res.json();
-  return json.artists as Artist[];
+
+  try {
+    // 2) Premier appel
+    console.log('🚀 Appel GET /spotify/me');
+    let res = await fetchWithJwt('/spotify/me');
+    console.log('📥 Statut réponse initiale :', res.status);
+
+    // 3) Si JWT expiré : on tente le refresh
+    if (res.status === 401) {
+      console.warn('⚠️ JWT expiré, tentative de refresh');
+      const refreshRes = await fetchWithJwt('/spotify/refresh', { method: 'POST' });
+      console.log('📥 Statut /spotify/refresh :', refreshRes.status);
+      const refreshText = await refreshRes.text().catch(() => '');
+      console.log('💬 Body /spotify/refresh :', refreshText);
+
+      if (!refreshRes.ok) {
+        throw new Error(`Refresh JWT KO – ${refreshText}`);
+      }
+      const { token: newToken } = JSON.parse(refreshText);
+      console.log('🔄 Nouveau token reçu :', newToken);
+      await SecureStore.setItemAsync(JWT_KEY, newToken);
+
+      // on réessaie avec le nouveau token
+      res = await fetchWithJwt('/spotify/me');
+      console.log('📥 Statut réponse après refresh :', res.status);
+    }
+
+    // 4) Lecture du body
+    const ct = res.headers.get('content-type') || '';
+    const text = await res.text().catch(() => '');
+    console.log('📋 Content-Type reçu :', ct);
+    console.log('💥 BODY BRUT reçu :', text);
+
+    // 5) Vérification JSON
+    if (!ct.includes('application/json')) {
+      throw new Error(`Réponse inattendue (pas JSON) : ${text}`);
+    }
+
+    // 6) Erreur HTTP
+    if (!res.ok) {
+      let errMsg = 'Erreur HTTP';
+      try {
+        const err = JSON.parse(text);
+        errMsg = err.error || err.message || errMsg;
+      } catch {}
+      throw new Error(errMsg);
+    }
+
+    // 7) Tout va bien
+    const data = JSON.parse(text);
+    console.log('✅ getSpotifyProfile réussi :', data);
+    return data;
+
+  } catch (err) {
+    const msg = (err as Error).message;
+    console.error('❌ Erreur dans getSpotifyProfile :', msg);
+
+    // Si le back a renvoyé “Utilisateur introuvable”, on efface la session et on revient à null
+    if (msg.includes('Utilisateur introuvable')) {
+      console.warn('🔒 Session morte détectée, suppression du JWT');
+      await SecureStore.deleteItemAsync(JWT_KEY);
+      return null;
+    }
+
+    throw err;
+  }
 }
 
 /**
- * Récupère la liste des playlists formatée par l'API
- * L'API renvoie { playlists: Playlist[] }
+ * Synchronise les playlists depuis ton backend.
  */
-export async function getPlaylists(): Promise<Playlist[]> {
-  const res = await fetch(`${API_URL}/playlist/getPlaylists`);
+export async function fetchPlaylists(): Promise<Playlist[]> {
+  const res = await fetchWithJwt('/playlist/fetchPlaylists');
   if (!res.ok) {
-    throw new Error(`Erreur getPlaylists: ${res.statusText}`);
+    throw new Error(`HTTP ${res.status} - ${res.statusText}`);
   }
   const json = await res.json();
   return json.playlists as Playlist[];
 }
 
-/**
- * Envoie le refresh token à votre backend pour obtenir un nouveau access_token
- * Backend attend POST /api/spotify/refresh { refresh_token: string }
- */
-export async function postRefreshToken(refreshToken: string): Promise<{
-  access_token: string;
-  refresh_token?: string;
-  expires_in: number;
-}> {
-  const res = await fetch(`${API_URL}/api/spotify/refresh`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  });
+export async function getArtistes(): Promise<Artist[]> {
+  const res = await fetchWithJwt('/artiste/getArtistes');
   if (!res.ok) {
-    throw new Error(`Erreur postRefreshToken: ${res.statusText}`);
+    throw new Error(`HTTP ${res.status} - ${res.statusText}`);
   }
-  return res.json();
+  const json = await res.json();
+  return json.playlists as Artist[];
 }
 
-/**
- * Récupère vos playlists directement depuis l'API Spotify
- */
-export async function fetchSpotifyPlaylists(accessToken: string): Promise<{
-  items: any[]; // vous pouvez typer plus précisément selon la réponse Spotify
-}> {
-  const res = await fetch("https://api.spotify.com/v1/me/playlists", {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+
+export async function getPlaylist(): Promise<Playlist[]> {
+  const res = await fetchWithJwt('/playlist/getPlaylists');
   if (!res.ok) {
-    throw new Error(`Erreur fetchSpotifyPlaylists: ${res.statusText}`);
+    throw new Error(`HTTP ${res.status} - ${res.statusText}`);
   }
-  return res.json();
+  const json = await res.json();
+  return json.playlists as Playlist[];
 }

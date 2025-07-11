@@ -128,5 +128,19 @@ $pdo->exec("
     DEFAULT CHARSET=utf8mb4
     COLLATE=utf8mb4_unicode_ci;
 ");
+$pdo->exec("
+  CREATE TABLE IF NOT EXISTS `oauth_tokens` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` varchar(100) NOT NULL,
+    `access_token` TEXT NOT NULL,
+    `refresh_token` TEXT NOT NULL,
+    `expires_at` DATETIME NOT NULL,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX (`user_id`),
+    INDEX (`expires_at`)
+  ) ENGINE=InnoDB
+    DEFAULT CHARSET=utf8mb4
+    COLLATE=utf8mb4_unicode_ci;
+");
 
 echo "Base prête : tables `spotify_playlists`, `artistes`, `albums`, `musiques`, `musique_artiste` et `playlist_musique` créées en utf8mb4.\n";

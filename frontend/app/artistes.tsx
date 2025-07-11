@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
+  ActivityIndicator,
+  Alert,
   SectionList,
   StyleSheet,
-  ActivityIndicator,
-  Alert
+  Text,
+  View
 } from 'react-native';
+import { useAuth } from '../context/AuthContext';
+import { getArtistes } from '../src/api/api';
 import Header from '../src/components/Header';
 import NowPlayingBanner from '../src/components/NowPlayingBanner';
-import { getArtistes } from '../src/api/api';
 
 interface Artist {
   id: number;
@@ -25,6 +26,22 @@ export default function ArtistesScreen() {
   const [sections, setSections] = useState<Section[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [syncing, setSyncing] = useState<boolean>(false);
+
+   const {
+      isAuthenticated,
+      loadingAuth,
+      errorAuth,
+      userProfile,
+      loadingProfile,
+      authenticate,
+      logout,
+    } = useAuth();
+  // **LOCAL** pour la sync
+    const [loadingSync, setLoadingSync] = useState(false);
+  
+    // Modal d'ajout
+    const [modalVisible, setModalVisible] = useState(false);
+    const [title, setTitle] = useState('');
 
   const loadArtists = async () => {
     try {
@@ -69,7 +86,14 @@ export default function ArtistesScreen() {
 
   return (
     <View style={styles.screen}>
-      <Header onSync={handleSync} loadingSync={syncing} onAdd={() => {}} />
+      <Header
+              onSync={handleSync}
+              loadingSync={loadingSync}
+              onAdd={() => setModalVisible(true)}
+              userProfile={userProfile}
+              profileLoading={loadingProfile}
+              
+            />
 
       <SectionList
         sections={sections}

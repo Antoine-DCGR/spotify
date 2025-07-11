@@ -137,17 +137,32 @@ class Router
 
         // ==================== SPOTIFY ====================
         // Démarre la connexion Spotify (OAuth)
-        if ($method === 'GET' && routeMatch('/spotify/connection', $uri)) {
-            (new SpotifyController($db))->connection();
-            return;
-        }
+      $params = [];
+// 1) Démarrage du flux OAuth
+if ($method === 'GET' && routeMatch('/spotify/redirect', $uri, $params)) {
+    (new SpotifyController())->redirectToProvider();
+    return;
+}
 
-        // Callback OAuth Spotify
-        if ($method === 'GET' && routeMatch('/spotify/spotifyCallback', $uri)) {
-            (new SpotifyController($db))->spotifyCallback();
-            return;
-        }
+// 2) Callback PKCE (échange code → tokens + JWT)
+if ($method === 'POST' && routeMatch('/spotify/spotifyCallback', $uri, $params)) {
+    (new SpotifyController())->spotifyCallback();
+    return;
+}
 
+// 3) Rafraîchissement du token
+if ($method === 'POST' && routeMatch('/spotify/refresh', $uri, $params)) {
+    (new SpotifyController())->refreshAccessToken();
+    return;
+}
+
+// Ensuite ta route existante pour /spotify/me
+if ($method === 'GET' && routeMatch('/spotify/me', $uri)) {
+    (new SpotifyController())->getSpotifyMe();
+    return;
+}
+
+     
         // ==================== AUDIODOWNLOAD ====================
         // Télécharge le MP3 pour une musique (par id)
         $params = [];

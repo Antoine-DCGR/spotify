@@ -14,7 +14,7 @@ class ArtisteController
     {
         $this->pdo            = $pdo;
         $this->artisteModel   = new Artiste($pdo);
-        $this->spotifyService = new SpotifyService();
+        $this->spotifyService = new SpotifyService($pdo);
     }
 
     public function fetchAndStoreFromSpotify(string $playlistId = null): void

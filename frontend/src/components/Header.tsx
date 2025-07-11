@@ -1,18 +1,29 @@
-import React from 'react';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
-import { useSegments, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+// src/components/Header.tsx
 
-// Définition des props avec leurs types
-interface HeaderProps {
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter, useSegments } from 'expo-router';
+import React, { useEffect } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { useAuth } from '../../context/AuthContext';
+
+export interface HeaderProps {
   onSync: () => void;
   loadingSync: boolean;
   onAdd: () => void;
+  userProfile: any;
+  profileLoading: boolean;
+  profileError?: string | null;
 }
 
-// Mapping des segments de route vers des titres lisibles
 const TITLES: Record<string, string> = {
-  '': 'Accueil',
+  home: 'Accueil',
   playlists: 'Playlists',
   titres: 'Titres',
   albums: 'Albums',
@@ -20,13 +31,40 @@ const TITLES: Record<string, string> = {
   login: 'Connexion',
 };
 
-export default function Header({ onSync, loadingSync, onAdd }: HeaderProps) {
+export default function Header({
+  onSync,
+  loadingSync,
+  onAdd,
+  userProfile,
+  profileLoading,
+  profileError,
+}: HeaderProps) {
   const segments = useSegments();
   const router = useRouter();
   const current = segments[segments.length - 1] ?? '';
-
-  // Utilisation sécurisée du mapping, fallback sur "Page" si non trouvé
   const title = TITLES[current] ?? 'Page';
+
+  const {
+    authenticate,
+    logout,
+    isAuthenticated,
+    loadingAuth,
+    errorAuth,
+  } = useAuth();
+
+  // Affiche les erreurs d’authentification
+  useEffect(() => {
+    if (errorAuth) {
+      Alert.alert('Erreur Spotify', errorAuth);
+    }
+  }, [errorAuth]);
+
+  // Affiche les erreurs de profil
+  useEffect(() => {
+    if (profileError) {
+      Alert.alert('Erreur Profil', profileError);
+    }
+  }, [profileError]);
 
   return (
     <View style={styles.header}>
@@ -39,14 +77,26 @@ export default function Header({ onSync, loadingSync, onAdd }: HeaderProps) {
             <Ionicons name="refresh" size={24} color="#333" />
           )}
         </Pressable>
-
         <Pressable onPress={onAdd} style={styles.actionButton}>
           <Text style={styles.actionText}>+</Text>
         </Pressable>
 
-        <Pressable onPress={() => router.push('/login')} style={styles.actionButton}>
-          <Text style={styles.actionText}>Connexion</Text>
-        </Pressable>
+        {loadingAuth || profileLoading ? (
+          <ActivityIndicator size={24} style={{ marginLeft: 8 }} />
+        ) : isAuthenticated && userProfile ? (
+           <Pressable
+ onPress={() => router.push('/logout')}
+ style={[styles.actionButton, { backgroundColor: '#d1ffe0' }]} >
+  <Text style={[styles.actionText, { color: '#237150' }]}>
+    {userProfile.display_name || userProfile.id}
+  </Text>
+</Pressable>
+
+        ) : (
+          <Pressable onPress={authenticate} style={styles.actionButton}>
+            <Text style={styles.actionText}>Connexion Spotify</Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -54,6 +104,7 @@ export default function Header({ onSync, loadingSync, onAdd }: HeaderProps) {
 
 const styles = StyleSheet.create({
   header: {
+    marginTop: 30,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
