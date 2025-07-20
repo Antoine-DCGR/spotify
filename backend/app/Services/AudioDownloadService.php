@@ -265,5 +265,4 @@ private function downloadFiles(array $downloadMap, array $results, Musique $musi
     curl_multi_close($mh3);
     
     return $results;
-}
-}
+}}

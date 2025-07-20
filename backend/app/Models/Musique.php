@@ -113,18 +113,30 @@ class Musique
      * Récupère toutes les musiques/épisodes d’une playlist (pivot join).
      * @return array
      */
-    public function getByPlaylistSpotify(string $playlistSpotifyId): array
-    {
-        $stmt = $this->pdo->prepare("
-            SELECT m.*
-              FROM musiques m
-              JOIN playlist_musique pm
-                ON m.id = pm.musique_id
-             WHERE pm.playlist_spotify_id = :playlist_id
-        ");
-        $stmt->execute([':playlist_id' => $playlistSpotifyId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
+   public function getByPlaylistSpotify(string $playlistId): array
+{
+    $sql = "
+        SELECT 
+            m.*,
+            al.titre AS album_titre,
+            al.image AS album_image,
+            GROUP_CONCAT(ar.nom ORDER BY ar.nom SEPARATOR ', ') AS artistes
+        FROM playlist_musique pm
+        JOIN musiques m ON m.id = pm.musique_id
+        LEFT JOIN albums al ON al.id = m.album_id
+        LEFT JOIN musique_artiste ma ON ma.musique_id = m.id
+        LEFT JOIN artistes ar ON ar.id = ma.artiste_id
+        WHERE pm.playlist_spotify_id = :playlist_id
+        GROUP BY m.id
+        ORDER BY m.created_at DESC
+    ";
+
+    $stmt = $this->pdo->prepare($sql);
+    $stmt->execute(['playlist_id' => $playlistId]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+
 
     /**
      * Récupère toutes les musiques/épisodes stockés (global).

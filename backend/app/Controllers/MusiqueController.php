@@ -27,15 +27,12 @@ class MusiqueController
 
     /**
      * POST /api/musique/fetchAndStoreMusicsFromSpotify
-     * Body: { "playlistId": "..." }
-     * Auth: JWT en header
      */
     public function fetchAndStoreMusicsFromSpotify(): void
     {
         header('Content-Type: application/json; charset=utf-8');
         header('Access-Control-Allow-Origin: *');
 
-        // 1) Authentifie l’utilisateur via JWT (comme dans PlaylistController)
         $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
         if (!str_starts_with($authHeader, 'Bearer ')) {
             http_response_code(401);
@@ -59,7 +56,6 @@ class MusiqueController
             return;
         }
 
-        // 2) Lit le body JSON pour récupérer playlistId
         $input = json_decode(file_get_contents('php://input'), true);
         $playlistSpotifyId = $input['playlistId'] ?? null;
         if (!$playlistSpotifyId) {
@@ -68,7 +64,6 @@ class MusiqueController
             return;
         }
 
-        // 3) Récupère access_token depuis la BDD (comme PlaylistController)
         $spotifyModel = new SpotifyModel($this->pdo);
         $tokens = $spotifyModel->getTokenByUserId((int)$userId);
         if (!$tokens || empty($tokens['access_token'])) {
@@ -78,7 +73,6 @@ class MusiqueController
         }
         $token = $tokens['access_token'];
 
-        // 4) LOGIQUE PAGINATION SPOTIFY TRACKS
         $maxPages = 50;
         $page     = 0;
         $url      = "https://api.spotify.com/v1/playlists/{$playlistSpotifyId}/tracks?limit=100";
@@ -92,10 +86,9 @@ class MusiqueController
                 ]
             ]);
             $res = @file_get_contents($url, false, $ctx);
-            if (!$res) {
-                break;
-            }
-            $json  = json_decode($res, true);
+            if (!$res) break;
+
+            $json = json_decode($res, true);
             foreach ($json['items'] ?? [] as $item) {
                 if (!empty($item['track']) && is_array($item['track'])) {
                     $tracks[] = $item['track'];
@@ -108,88 +101,66 @@ class MusiqueController
             error_log("Arrêt pagination après $maxPages pages pour playlist {$playlistSpotifyId}");
         }
 
-        // 5) Pré-collecte de tous les artist Spotify IDs
         $allArtistSpotifyIds = [];
         foreach ($tracks as $t) {
-            if (!empty($t['artists']) && is_array($t['artists'])) {
-                foreach ($t['artists'] as $art) {
-                    if (!empty($art['id'])) {
-                        $allArtistSpotifyIds[$art['id']] = true;
-                    }
+            foreach ($t['artists'] ?? [] as $art) {
+                if (!empty($art['id'])) {
+                    $allArtistSpotifyIds[$art['id']] = true;
                 }
             }
         }
         $allArtistSpotifyIds = array_keys($allArtistSpotifyIds);
 
-        // 6) Batch fetch des infos artistes (dont genres)
         try {
-            $artistsInfo = $this->spotifyService
-                                ->getArtistsInfo($token, $allArtistSpotifyIds);
+            $artistsInfo = $this->spotifyService->getArtistsInfo($token, $allArtistSpotifyIds);
         } catch (Exception $e) {
             http_response_code(503);
             echo json_encode(['error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
             return;
         }
 
-        // 7) Traitement & insertion
         $stored = [];
         foreach ($tracks as $t) {
-            if (empty($t['id']) || empty($t['name'])) {
-                continue;
-            }
+            if (empty($t['id']) || empty($t['name'])) continue;
 
-            // Sync ARTISTES + collecte des genres
-            $artistIds   = [];
+            $artistIds = [];
             $trackGenres = [];
             foreach ($t['artists'] as $art) {
-                if (empty($art['id']) || empty($art['name'])) {
-                    continue;
-                }
-                $aid = $this->artisteModel
-                            ->insertIfNotExistsSpotify($art['id'], $art['name']);
+                if (empty($art['id']) || empty($art['name'])) continue;
+                $aid = $this->artisteModel->insertIfNotExistsSpotify($art['id'], $art['name']);
                 $artistIds[] = $aid;
-
-                $genres = $artistsInfo[$art['id']]['genres'] ?? [];
-                $trackGenres = array_merge($trackGenres, $genres);
+                $trackGenres = array_merge($trackGenres, $artistsInfo[$art['id']]['genres'] ?? []);
             }
-            $genreString = $trackGenres
-                ? implode(',', array_unique($trackGenres))
-                : null;
+            $genreString = $trackGenres ? implode(',', array_unique($trackGenres)) : null;
 
-            // Sync ALBUM (prend le premier artiste comme owner)
             $albumId = null;
             if (!empty($t['album']['id']) && !empty($artistIds[0])) {
                 $albInfo = $t['album'];
                 $albumId = $this->albumModel->insertIfNotExistsSpotify(
                     $albInfo['id'],
-                    $albInfo['name']            ?? '',
+                    $albInfo['name'] ?? '',
                     $artistIds[0],
-                    $albInfo['release_date']    ?? null,
+                    $albInfo['release_date'] ?? null,
                     $albInfo['images'][0]['url'] ?? null
                 );
             }
 
-            // Sync MUSIQUE
             $musiqueId = $this->musiqueModel->insertIfNotExists(
-                $t['id'],                   // spotify_track_id
-                $t['name'],                 // titre
-                $t['duration_ms']           ?? 0,
-                $t['type']                  ?? 'track',
-                null,                       // id_youtube initialement null
-                null,                       // audio_path
-                $genreString,               // genre agrégé
-                $albumId                    // album_id
+                $t['id'],
+                $t['name'],
+                $t['duration_ms'] ?? 0,
+                $t['type'] ?? 'track',
+                null,
+                null,
+                $genreString,
+                $albumId
             );
 
-            // Liaison N–N musique↔artistes
             foreach ($artistIds as $aid) {
-                $this->musiqueModel
-                     ->insertMusicArtistRelation($musiqueId, $aid);
+                $this->musiqueModel->insertMusicArtistRelation($musiqueId, $aid);
             }
 
-            // Liaison playlist↔musique
-            $this->musiqueModel
-                 ->insertPlaylistMusicRelation($musiqueId, $playlistSpotifyId);
+            $this->musiqueModel->insertPlaylistMusicRelation($musiqueId, $playlistSpotifyId);
 
             $stored[] = [
                 'id'    => $musiqueId,
@@ -204,18 +175,18 @@ class MusiqueController
     /**
      * GET /api/musique/musiqueByPlaylist?playlistId=...
      */
-   public function musiqueByPlaylist($spotify_id): void
-{
-    if (!$spotify_id) {
-        http_response_code(400);
-        echo json_encode(['error' => 'spotify_id manquant'], JSON_UNESCAPED_UNICODE);
-        return;
-    }
+    public function musiqueByPlaylist($spotify_id): void
+    {
+        if (!$spotify_id) {
+            http_response_code(400);
+            echo json_encode(['error' => 'spotify_id manquant'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
 
-    $tracks = $this->musiqueModel->getByPlaylistSpotify($spotify_id);
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['musique' => $tracks], JSON_UNESCAPED_UNICODE);
-}
+        $tracks = $this->musiqueModel->getByPlaylistSpotify($spotify_id);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['musique' => $tracks], JSON_UNESCAPED_UNICODE);
+    }
 
     /**
      * GET /api/musique/allMusique
@@ -247,21 +218,23 @@ class MusiqueController
             http_response_code(404);
             echo json_encode(['error' => 'Musique non trouvée'], JSON_UNESCAPED_UNICODE);
         }
-
-
     }
+
+    /**
+     * POST /api/musique/fetchAndStoreMusicsAllPlaylistsFromSpotify
+     */
     public function fetchAndStoreMusicsAllPlaylistsFromSpotify(): void
 {
     header('Content-Type: application/json; charset=utf-8');
     header('Access-Control-Allow-Origin: *');
 
-    // Authentification comme avant
     $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
     if (!str_starts_with($authHeader, 'Bearer ')) {
         http_response_code(401);
         echo json_encode(['error' => 'Authorization manquant ou invalide']);
         return;
     }
+
     $jwt = trim(substr($authHeader, 7));
     try {
         $payload = Jwt::decode($jwt, getenv('JWT_SECRET'));
@@ -270,6 +243,7 @@ class MusiqueController
         echo json_encode(['error' => 'JWT invalide : ' . $e->getMessage()]);
         return;
     }
+
     $userId = $payload['sub'] ?? null;
     if (!$userId) {
         http_response_code(400);
@@ -277,7 +251,6 @@ class MusiqueController
         return;
     }
 
-    // Récupère access_token depuis la BDD (comme avant)
     $spotifyModel = new SpotifyModel($this->pdo);
     $tokens = $spotifyModel->getTokenByUserId((int)$userId);
     if (!$tokens || empty($tokens['access_token'])) {
@@ -287,17 +260,16 @@ class MusiqueController
     }
     $token = $tokens['access_token'];
 
-    // Récupère toutes les playlists de la BDD
     $playlists = $this->pdo->query("SELECT spotify_id, nom FROM spotify_playlists")->fetchAll(PDO::FETCH_ASSOC);
-    $allResults = [];
+    $results = [];
+
     foreach ($playlists as $playlist) {
         $playlistSpotifyId = $playlist['spotify_id'];
-        $playlistName      = $playlist['nom'];
-        // ---- LOGIQUE DE TON fetchAndStoreMusicsFromSpotify MAIS appliqué pour cette playlist
+        $playlistName = $playlist['nom'];
+        $url = "https://api.spotify.com/v1/playlists/{$playlistSpotifyId}/tracks?limit=100";
+        $page = 0;
         $maxPages = 50;
-        $page     = 0;
-        $url      = "https://api.spotify.com/v1/playlists/{$playlistSpotifyId}/tracks?limit=100";
-        $tracks   = [];
+        $tracks = [];
 
         while ($url && $page++ < $maxPages) {
             $ctx = stream_context_create([
@@ -308,7 +280,8 @@ class MusiqueController
             ]);
             $res = @file_get_contents($url, false, $ctx);
             if (!$res) break;
-            $json  = json_decode($res, true);
+
+            $json = json_decode($res, true);
             foreach ($json['items'] ?? [] as $item) {
                 if (!empty($item['track']) && is_array($item['track'])) {
                     $tracks[] = $item['track'];
@@ -317,10 +290,54 @@ class MusiqueController
             $url = $json['next'] ?? null;
         }
 
-        // Insère les tracks comme dans ta méthode
+        // Collecte de tous les artist IDs pour récupération groupée des genres
+        $allArtistSpotifyIds = [];
+        foreach ($tracks as $t) {
+            foreach ($t['artists'] ?? [] as $art) {
+                if (!empty($art['id'])) {
+                    $allArtistSpotifyIds[$art['id']] = true;
+                }
+            }
+        }
+        $allArtistSpotifyIds = array_keys($allArtistSpotifyIds);
+
+        try {
+            $artistsInfo = $this->spotifyService->getArtistsInfo($token, $allArtistSpotifyIds);
+        } catch (Exception $e) {
+            error_log("Erreur Spotify Artists : " . $e->getMessage());
+            continue;
+        }
+
         $stored = [];
+
         foreach ($tracks as $t) {
             if (empty($t['id']) || empty($t['name'])) continue;
+
+            // ARTISTES
+            $artistIds = [];
+            $trackGenres = [];
+            foreach ($t['artists'] ?? [] as $art) {
+                if (empty($art['id']) || empty($art['name'])) continue;
+                $aid = $this->artisteModel->insertIfNotExistsSpotify($art['id'], $art['name']);
+                $artistIds[] = $aid;
+                $trackGenres = array_merge($trackGenres, $artistsInfo[$art['id']]['genres'] ?? []);
+            }
+            $genreString = $trackGenres ? implode(',', array_unique($trackGenres)) : null;
+
+            // ALBUM
+            $albumId = null;
+            if (!empty($t['album']['id']) && !empty($artistIds[0])) {
+                $albInfo = $t['album'];
+                $albumId = $this->albumModel->insertIfNotExistsSpotify(
+                    $albInfo['id'],
+                    $albInfo['name'] ?? '',
+                    $artistIds[0],
+                    $albInfo['release_date'] ?? null,
+                    $albInfo['images'][0]['url'] ?? null
+                );
+            }
+
+            // MUSIQUE
             $musiqueId = $this->musiqueModel->insertIfNotExists(
                 $t['id'],
                 $t['name'],
@@ -328,26 +345,33 @@ class MusiqueController
                 $t['type'] ?? 'track',
                 null,
                 null,
-                null,
-                null
+                $genreString,
+                $albumId
             );
+
+            foreach ($artistIds as $aid) {
+                $this->musiqueModel->insertMusicArtistRelation($musiqueId, $aid);
+            }
+
+            // RELATION PLAYLIST-MUSIQUE
             $this->musiqueModel->insertPlaylistMusicRelation($musiqueId, $playlistSpotifyId);
+
             $stored[] = [
                 'id'    => $musiqueId,
                 'titre' => $t['name'],
+                'genre' => $genreString,
             ];
         }
-        $allResults[] = [
-            'playlist' => $playlistName,
-            'playlist_id' => $playlistSpotifyId,
-            'nb_musiques' => count($stored)
+
+        $results[] = [
+            'playlist'     => $playlistName,
+            'playlist_id'  => $playlistSpotifyId,
+            'nb_musiques'  => count($stored),
         ];
     }
 
     echo json_encode([
-        'message'      => 'Musiques synchronisées pour toutes les playlists',
-        'resultats'    => $allResults
+        'message' => 'Musiques synchronisées avec artistes, albums et genres',
+        'resultats' => $results
     ], JSON_UNESCAPED_UNICODE);
-}
-
-}
+}}

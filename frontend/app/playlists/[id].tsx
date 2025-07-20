@@ -1,100 +1,213 @@
-import { useLocalSearchParams } from 'expo-router';
+import { MaterialIcons } from '@expo/vector-icons';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Pressable,
+  SafeAreaView,
+  SectionList,
+  StyleSheet,
+  Text,
+  View
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
-import { getMusicsByPlaylist, Music } from '../../src/api/api'; // <-- On importe la fonction
-import Header from '../../src/components/Header';
+import {
+  downloadTrack,
+  fetchYoutubeIdForTrack,
+  getMusicsByPlaylist,
+  Music
+} from '../../src/api/api';
 import NowPlayingBanner from '../../src/components/NowPlayingBanner';
 
+type Section = { title: string; data: Music[] };
+
 export default function PlaylistDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, name, image } = useLocalSearchParams<{
+    id: string;
+    name: string;
+    image: string;
+  }>();
   const [musics, setMusics] = useState<Music[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const {
-    userProfile,
-    loadingProfile,
-    loadingAuth,
-  } = useAuth();
+  const [downloaded, setDownloaded] = useState<Set<number>>(new Set());
+  const [loadingIds, setLoadingIds] = useState<Set<number>>(new Set());
+  const { loadingAuth } = useAuth();
 
   useEffect(() => {
-    console.log('playlist id:', id)
     if (!id) return;
     setLoading(true);
     getMusicsByPlaylist(id)
       .then(setMusics)
-      .catch(err => Alert.alert('Erreur', err.message))
+      .catch(err => {
+        console.error(err);
+        Alert.alert('Erreur', err.message);
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
   if (loading || loadingAuth) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size={48} color="#333" />
+        <ActivityIndicator size={48} />
       </View>
     );
   }
 
-  return (
-    <View style={styles.screen}>
-      <Header
-        onSync={() => {}}
-        loadingSync={false}
-        onAdd={() => {}}
-        userProfile={userProfile}
-        profileLoading={loadingProfile}
-      />
+  // Trie alphabétique et groupement par initiale
+  const sections: Section[] = musics
+    .slice()
+    .sort((a, b) => a.titre.localeCompare(b.titre))
+    .reduce<Section[]>((acc, item) => {
+      const letter = item.titre[0].toUpperCase();
+      let section = acc.find(s => s.title === letter);
+      if (!section) {
+        section = { title: letter, data: [] };
+        acc.push(section);
+      }
+      section.data.push(item);
+      return acc;
+    }, []);
 
-      <Text style={styles.title}>Musiques de la playlist</Text>
-      <FlatList
-        data={musics}
-        keyExtractor={item => item.spotify_track_id || String(item.id)}
+  const onDownloadTrackPress = async (track: Music) => {
+    setLoadingIds(prev => new Set(prev).add(track.id));
+    try {
+      await downloadTrack(track.id);
+    } catch (err: any) {
+      if (err.message.includes('Aucune vidéo trouvée')) {
+        try {
+          await fetchYoutubeIdForTrack(track.id);
+          await downloadTrack(track.id);
+        } catch (ytErr: any) {
+          console.error('YouTube fetch error', ytErr);
+          Alert.alert('Erreur', ytErr.message);
+          setLoadingIds(prev => {
+            const copy = new Set(prev);
+            copy.delete(track.id);
+            return copy;
+          });
+          return;
+        }
+      } else {
+        console.error(err);
+        Alert.alert('Erreur', err.message);
+        setLoadingIds(prev => {
+          const copy = new Set(prev);
+          copy.delete(track.id);
+          return copy;
+        });
+        return;
+      }
+    }
+    setLoadingIds(prev => {
+      const copy = new Set(prev);
+      copy.delete(track.id);
+      return copy;
+    });
+    
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <Stack.Screen options={{ title: name ?? 'Playlist' }} />
+
+      {image && (
+        <Image source={{ uri: image }} style={styles.playlistCover} />
+      )}
+
+      <SectionList
+        style={styles.sectionList}
+        sections={sections}
+        keyExtractor={item => item.spotify_track_id}
+        renderSectionHeader={({ section }) => (
+          <Text style={styles.sectionHeader}>{section.title}</Text>
+        )}
         renderItem={({ item }) => (
           <View style={styles.musicItem}>
-            <Text style={styles.musicTitle}>{item.titre}</Text>
-            <Text style={styles.musicDuration}>{Math.round(item.duree_ms / 1000)} sec</Text>
+            {item.album_image && (
+              <Image
+                source={{ uri: item.album_image }}
+                style={styles.albumImage}
+              />
+            )}
+            <View style={styles.info}>
+              <Text style={styles.musicTitle}>{item.titre}</Text>
+              <Text style={styles.musicArtist}>
+                {item.artistes.join(', ')}
+              </Text>
+            </View>
+            {!downloaded.has(item.id) && (
+              <View style={styles.downloadContainer}>
+                {loadingIds.has(item.id) ? (
+                  <ActivityIndicator size={20} />
+                ) : (
+                  <Pressable
+                    style={styles.downloadBtn}
+                    onPress={() => onDownloadTrackPress(item)}
+                  >
+                    <MaterialIcons name="file-download" size={20} />
+                  </Pressable>
+                )}
+              </View>
+            )}
           </View>
         )}
-        ListEmptyComponent={
+        ListEmptyComponent={() => (
           <View style={styles.empty}>
             <Text>Aucune musique trouvée.</Text>
           </View>
-        }
+        )}
       />
 
       <NowPlayingBanner
         title="Dawn"
         artist="Artist Name"
         imageUri="https://via.placeholder.com/50"
-        onPlayPause={() => console.log('Play')}
-        onNext={() => console.log('Next')}
-        onPrevious={() => console.log('Previous')}
+        onPlayPause={() => {}}
+        onNext={() => {}}
+        onPrevious={() => {}}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#fff' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  title: { fontSize: 22, fontWeight: 'bold', margin: 18 },
-  musicItem: {
+  container:        { flex: 1, backgroundColor: '#fff' },
+  center:           { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  playlistCover:    { width: '100%', height: 200, resizeMode: 'cover', marginBottom: 12 },
+  sectionList:      { flex: 1 },
+  sectionHeader:    {
+    fontSize: 18,
+    fontWeight: 'bold',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#f0f0f0',
+  },
+  musicItem:        {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderColor: '#eee',
   },
-  musicTitle: { fontSize: 16 },
-  musicDuration: { color: '#888' },
-  empty: { alignItems: 'center', padding: 32 },
+  albumImage:       {
+    width: 50,
+    height: 50,
+    borderRadius: 4,
+    marginRight: 12,
+    backgroundColor: '#ccc',
+  },
+  info:             { flex: 1, justifyContent: 'center' },
+  musicTitle:       { fontSize: 16 },
+  musicArtist:      { fontSize: 14, color: '#666', marginTop: 4 },
+  downloadContainer:{ width: 32, alignItems: 'center' },
+  downloadBtn:      { padding: 6 },
+  empty:            {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
 });

@@ -11,11 +11,10 @@ require_once __DIR__ . '/../Controllers/ArtisteController.php';
 require_once __DIR__ . '/../Controllers/AudioDownloadController.php';
 require_once __DIR__ . '/../Controllers/ManualController.php';
 
-// ... (tous les require_once comme dans ton code)
 
 function routeMatch($pattern, $uri, &$params = []) {
     $pattern = trim($pattern, '/');
-    $uri = trim($uri, '/');
+    $uri     = trim($uri, '/');
     $pattern = str_replace('/', '\/', $pattern);
     $pattern = preg_replace('/\{(\w+)\}/', '(?P<$1>[^\/]+)', $pattern);
     if (preg_match('/^' . $pattern . '$/', $uri, $matches)) {
@@ -31,243 +30,128 @@ class Router
 {
     public function handleRequest()
     {
-        $db = getDatabaseConnection();
-        $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+        $db     = getDatabaseConnection();
+        $uri    = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
         $method = $_SERVER['REQUEST_METHOD'];
-        error_log("DEBUG URI: $uri | METHOD: $method");
 
-        // ==================== PLAYLISTS ====================
-        // Liste toutes les playlists
+        // ——— PLAYLISTS —————————————————————————
         $params = [];
-        if ($method === 'GET' && routeMatch('/playlist/getPlaylists', $uri, $params)) {
-            (new PlaylistController($db))->getPlaylists();
-            return;
+        if ($method==='GET' && routeMatch('/playlist/getPlaylists',$uri,$params)) {
+            (new PlaylistController($db))->getPlaylists(); return;
         }
-
-        // Détail d'une playlist
-        $params = [];
-        if ($method === 'GET' && routeMatch('/playlist/getPlaylists/{id}', $uri, $params)) {
-            (new PlaylistController($db))->show($params['id']);
-            return;
+        if ($method==='GET' && routeMatch('/playlist/getPlaylists/{id}',$uri,$params)) {
+            (new PlaylistController($db))->show($params['id']); return;
         }
-
-         // Créer une playlist
-        if ($method === 'GET' && routeMatch('/playlist/addPlaylists', $uri, $params)) {
-            (new PlaylistController($db))->store();
-            return;
+        if ($method==='GET' && routeMatch('/playlist/addPlaylists',$uri)) {
+            (new PlaylistController($db))->store(); return;
         }
-        // Liste des musiques d'une playlist
-         $params = [];
-        if ($method === 'GET' && routeMatch('/playlist/{playlistId}/getMusiques', $uri, $params)) {
-            (new PlaylistController($db))->getMusics($params['playlistId']);
-            return;
+        if ($method==='GET' && routeMatch('/playlist/{playlistId}/getMusiques',$uri,$params)) {
+            (new PlaylistController($db))->getMusics($params['playlistId']); return;
         }
-
-        // Ajouter une musique à une playlist
-        $params = [];
-        if ($method === 'GET' && routeMatch('/playlists/{id}/addMusiques', $uri, $params)) {
-            (new PlaylistController($db))->addMusic($params['playlistid']);
-            return;
+        if ($method==='GET' && routeMatch('/playlists/{id}/addMusiques',$uri,$params)) {
+            (new PlaylistController($db))->addMusic($params['id']); return;
         }
-
-        // Supprimer une musique d'une playlist
-        $params = [];
-        if ($method === 'DELETE' && routeMatch('/playlists/{playlistid}/deleteMusiques/{musicId}', $uri, $params)) {
-            (new PlaylistController($db))->removeMusic($params['playlistid'], $params['musicId']);
-            return;
+        if ($method==='DELETE' && routeMatch('/playlists/{playlistid}/deleteMusiques/{musicId}',$uri,$params)) {
+            (new PlaylistController($db))->removeMusic($params['playlistid'],$params['musicId']); return;
         }
-
-        // Récupère et stocke toutes les playlists Spotify de l'utilisateur connecté
-        if ($method === 'GET' && routeMatch('/playlist/fetchPlaylists', $uri)) {
-            (new PlaylistController($db))->fetchAndStoreFromSpotify($db);
-            return;
+        if ($method==='GET' && routeMatch('/playlist/fetchPlaylists',$uri)) {
+            (new PlaylistController($db))->fetchAndStoreFromSpotify($db); return;
         }
-
-
-        // ==================== SYNCHRONISATION ====================
-         $params = [];
-        if ($method === 'POST' && routeMatch('/sync/syncAll', $uri, $params)) {
-            (new SyncController($db))->syncAll();
-            return;
-        }
-
-        // ==================== MUSIQUES ====================
-        // Liste toutes les musiques
-        $params = [];
-        if ($method === 'GET' && routeMatch('/musique/getMusiques', $uri, $params)) {
-            (new MusiqueController($db))->allMusique();
-            return;
-        }
-        $params = [];
-if ($method === 'GET' && routeMatch('/musique/getMusiqueByPlaylist/{spotify_id}', $uri, $params)) {
-    (new MusiqueController($db))->musiqueByPlaylist($params['spotify_id']);
-    return;
-}
-
-        // Détail d'une musique par id
-        $params = [];
-        if ($method === 'GET' && routeMatch('/musique/getMusiques/{id}', $uri, $params)) {
-            (new MusiqueController($db))->show($params['id']);
-            return;
-        }
-
-          // Récupère et stocke toutes les musiques d'une playlist Spotify donnée
-        $params = [];
-        if ($method === 'GET' && routeMatch('/musique/{playlistId}/addmusique', $uri, $params)) {
-            (new MusiqueController($db))->fetchAndStoreMusicsFromSpotify($params['playlistId']);
-            return;
-        }
-
-         $params = [];
-        if ($method === 'GET' && routeMatch('/musique/addMusiqueByPlaylists', $uri, $params)) {
-            (new MusiqueController($db))->fetchAndStoreMusicsAllPlaylistsFromSpotify();
-            return;
-        }
-
-        
-
-        // ==================== ALBUMS ====================
-        // Liste tous les albums
-        $params = [];
-        if ($method === 'GET' && routeMatch('/album/getAlbums', $uri, $params)) {
-            (new AlbumController($db))->index();
-            return;
-        }
-
-        // Détail d'un album
-        $params = [];
-        if ($method === 'GET' && routeMatch('/album/getAlbums/{id}', $uri, $params)) {
-            (new AlbumController($db))->show($params['id']);
-            return;
-        }
-
-        // ==================== ARTISTES ====================
-        // Liste tous les artistes
-        $params = [];
-        if ($method === 'GET' && routeMatch('/artiste/getArtistes', $uri, $params)) {
-            (new ArtisteController($db))->getAllArtists();
-            return;
-        }
-
-        // Détail d'un artiste
-        $params = [];
-        if ($method === 'GET' && routeMatch('/artiste/getArtistes/{id}', $uri, $params)) {
-            (new ArtisteController($db))->show($params['id']);
-            return;
-        }
-
-        // ==================== SPOTIFY ====================
-        // Démarre la connexion Spotify (OAuth)
-      $params = [];
-// 1) Démarrage du flux OAuth
-if ($method === 'GET' && routeMatch('/spotify/redirect', $uri, $params)) {
-    (new SpotifyController())->redirectToProvider();
-    return;
-}
-
-// 2) Callback PKCE (échange code → tokens + JWT)
-if ($method === 'POST' && routeMatch('/spotify/spotifyCallback', $uri, $params)) {
-    (new SpotifyController())->spotifyCallback();
-    return;
-}
-
-// 3) Rafraîchissement du token
-if ($method === 'POST' && routeMatch('/spotify/refresh', $uri, $params)) {
-    (new SpotifyController())->refreshAccessToken();
-    return;
-}
-
-// Ensuite ta route existante pour /spotify/me
-if ($method === 'GET' && routeMatch('/spotify/me', $uri)) {
-    (new SpotifyController())->getSpotifyMe();
-    return;
-}
-if ($method === 'POST' && routeMatch('/spotify/logout', $uri)) {
-    (new SpotifyController())->logout();
-    return;
-}
 
      
-        // ==================== AUDIODOWNLOAD ====================
-        // Télécharge le MP3 pour une musique (par id)
-        $params = [];
-        if ($method === 'GET' && routeMatch('/audio/musics/{musiqueId}', $uri, $params)) {
-            (new AudioDownloadController($db))->fetchByMusique($params['musiqueId']);
-            return;
+
+        // ——— MUSIQUES ——————————————————————
+        if ($method==='GET' && routeMatch('/musique/getMusiques',$uri,$params)) {
+            (new MusiqueController($db))->allMusique(); return;
+        }
+        if ($method==='GET' && routeMatch('/musique/getMusiqueByPlaylist/{spotify_id}',$uri,$params)) {
+            (new MusiqueController($db))->musiqueByPlaylist($params['spotify_id']); return;
+        }
+        if ($method==='GET' && routeMatch('/musique/getMusiques/{id}',$uri,$params)) {
+            (new MusiqueController($db))->show($params['id']); return;
+        }
+        if ($method==='GET' && routeMatch('/musique/addMusiqueByPlaylists',$uri)) {
+            (new MusiqueController($db))->fetchAndStoreMusicsAllPlaylistsFromSpotify(); return;
         }
 
-        // Télécharge le MP3 pour une vidéo YouTube donnée
-        $params = [];
-        if ($method === 'GET' && routeMatch('/audio/youtube/{videoId}', $uri, $params)) {
-            (new AudioDownloadController($db))->fetch($params['videoId']);
-            return;
+        // ——— ALBUMS —————————————————————————
+        if ($method==='GET' && routeMatch('/album/getAlbums',$uri,$params)) {
+            (new AlbumController($db))->index(); return;
+        }
+        if ($method==='GET' && routeMatch('/album/getAlbums/{id}',$uri,$params)) {
+            (new AlbumController($db))->show($params['id']); return;
         }
 
-       
-       
-
-        // Télécharge tous les MP3s (batch)
-        if ($method === 'GET' && routeMatch('/audio/download/all', $uri)) {
-            (new AudioDownloadController($db))->fetchAllDownload();
-            return;
+        // ——— ARTISTES ——————————————————————
+        if ($method==='GET' && routeMatch('/artiste/getArtistes',$uri,$params)) {
+            (new ArtisteController($db))->getAllArtists(); return;
+        }
+        if ($method==='GET' && routeMatch('/artiste/getArtistes/{id}',$uri,$params)) {
+            (new ArtisteController($db))->show($params['id']); return;
         }
 
-        // Télécharge un seul MP3 (batch unitaire)
-        if ($method === 'GET' && routeMatch('/audio/download/one', $uri)) {
-            (new AudioDownloadController($db))->fetchSingle();
-            return;
+        // ——— SPOTIFY ——————————————————————
+        if ($method==='GET' && routeMatch('/spotify/redirect',$uri,$params)) {
+            (new SpotifyController())->redirectToProvider(); return;
+        }
+        if ($method==='POST'&& routeMatch('/spotify/spotifyCallback',$uri,$params)) {
+            (new SpotifyController())->spotifyCallback(); return;
+        }
+        if ($method==='POST'&& routeMatch('/spotify/refresh',$uri,$params)) {
+            (new SpotifyController())->refreshAccessToken(); return;
+        }
+        if ($method==='GET' && routeMatch('/spotify/me',$uri)) {
+            (new SpotifyController())->getSpotifyMe(); return;
+        }
+        if ($method==='POST'&& routeMatch('/spotify/logout',$uri)) {
+            (new SpotifyController())->logout(); return;
         }
 
-        // Liste toutes les musiques sans audio téléchargé
-        if ($method === 'GET' && routeMatch('/audio/getMissing/list', $uri)) {
-            (new AudioDownloadController($db))->listMissing();
-            return;
+        // ——— AUDIODOWNLOAD ——————————————————
+        // Télécharger un seul titre (avec Youtube-ID auto-fetch)
+        if ($method==='GET' && routeMatch('/audio/download/music/{musiqueId}',$uri,$params)) {
+            (new AudioDownloadController($db))->downloadMusic($params['musiqueId']); return;
+        }
+        // Batch / pagination
+        if ($method==='GET' && routeMatch('/audio/download/all',$uri)) {
+            (new AudioDownloadController($db))->fetchAllDownload(); return;
+        }
+        if ($method==='GET' && routeMatch('/audio/download/one',$uri)) {
+            (new AudioDownloadController($db))->fetchSingle(); return;  // ou alias
+        }
+        if ($method==='GET' && routeMatch('/audio/getMissing/list',$uri)) {
+            (new AudioDownloadController($db))->listMissingAudio(); return;
         }
 
-        // ==================== YOUTUBE ====================
- 
-       
-        // Liste tous les IDs Youtube trouvés
-        if ($method === 'GET' && routeMatch('/youtube/getYoutubeIds', $uri)) {
-            (new YoutubeController($db))->getYoutubeIds();
-            return;
+        // ——— YOUTUBE ——————————————————————
+        if ($method==='POST'&& routeMatch('/youtube/fetch',$uri)) {
+            (new YoutubeController($db))->fetchAndStore(); return;
+        }
+        if ($method==='GET' && routeMatch('/youtube/getYoutubeIds',$uri)) {
+            (new YoutubeController($db))->getYoutubeIds(); return;
+        }
+        if ($method==='GET' && routeMatch('/youtube/getMusiqueWithoutYoutubeId',$uri)) {
+            (new YoutubeController($db))->getMusiqueWithoutYoutubeId(); return;
+        }
+        if ($method==='GET' && routeMatch('/youtube/fetchYoutubeIdAll',$uri)) {
+            (new YoutubeController($db))->fetchYoutubeAllPaginated(); return;
         }
 
-        // Liste les musiques sans id Youtube associé
-        if ($method === 'GET' && routeMatch('/youtube/getMusiqueWithoutYoutubeId', $uri)) {
-            (new YoutubeController($db))->getMusiqueWithoutYoutubeId();
-            return;
+        // ——— MANUEL ——————————————————————
+        if ($method==='GET' && routeMatch('/manual/addform',$uri)) {
+            (new ManualController($db))->showAddForm(); return;
         }
-        // Lance la récupération de tous les ids Youtube manquants
-        if ($method === 'GET' && routeMatch('/youtube/fetchYoutubeIdAll', $uri)) {
-            (new YoutubeController($db))->fetchYoutubeIdAll();
-            return;
+        if ($method==='GET' && routeMatch('/manual/addMusique',$uri)) {
+            (new ManualController($db))->addManual(); return;
         }
 
-
-    // ==================== AJOUT MANUEL ====================
-        // Affiche le formulaire d'ajout manuel (si besoin en front)
-        if ($method === 'GET' && routeMatch('/manual/addform', $uri)) {
-            (new ManualController($db))->showAddForm();
-            return;
-        }
-
-        // Ajoute une musique manuellement
-        if ($method === 'GET' && routeMatch('/manual/addMusique', $uri)) {
-            (new ManualController($db))->addManual();
-            return;
-        }
-
-        // ==================== SETUP (BATCH DB, DEV SEULEMENT) ====================
-        // Initialise la base de données (dev)
-        $params = [];
-        if (($method === 'GET' || $method === 'GET') && routeMatch('/api/setup', $uri, $params)) {
+        // ——— SETUP (DEV) ————————————————
+        if (($method==='GET') && routeMatch('/setup',$uri,$params)) {
             require_once __DIR__ . '/../../setup.php';
-            echo json_encode(['message' => 'Setup completed successfully']);
-            return;
+            echo json_encode(['message' => 'Setup completed successfully']); return;
         }
 
-        // ==================== 404 NOT FOUND (catch-all) ====================
+        // 404 catch-all
         http_response_code(404);
         echo json_encode(['error' => 'Route not found']);
     }

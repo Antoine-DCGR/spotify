@@ -1,6 +1,4 @@
-// src/screens/playlist.tsx
-
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -8,35 +6,26 @@ import {
   FlatList,
   Image,
   Pressable,
+  SafeAreaView,
   StyleSheet,
   Text,
   View
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { getPlaylist, Playlist } from '../../src/api/api';
-import Header from '../../src/components/Header';
 import NowPlayingBanner from '../../src/components/NowPlayingBanner';
 
 export default function PlaylistsScreen() {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]     = useState(true);
   const [loadingSync, setLoadingSync] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
-
-  const {
-    isAuthenticated,
-    loadingAuth,
-    errorAuth,
-    userProfile,
-    loadingProfile,
-  } = useAuth();
-
+  const { loadingAuth, userProfile, loadingProfile } = useAuth();
   const router = useRouter();
 
   const loadPlaylists = async () => {
     setLoading(true);
     try {
-      const pl = await getPlaylist();   // <-- API call pour les playlists
+      const pl = await getPlaylist();
       setPlaylists(pl);
     } catch (err: any) {
       Alert.alert('Erreur', err.message || 'Impossible de charger les playlists.');
@@ -65,13 +54,13 @@ export default function PlaylistsScreen() {
   }
 
   return (
-    <View style={styles.screen}>
-      <Header
-        onSync={handleSync}
-        loadingSync={loadingSync}
-        onAdd={() => setModalVisible(true)}
-        userProfile={userProfile}
-        profileLoading={loadingProfile}
+    <SafeAreaView style={styles.container}>
+      {/* TITRE FIXE, sans masquer le back-arrow (index n'en a pas besoin) */}
+      <Stack.Screen
+        options={{
+          title: 'Playlists',
+          // pas de headerBackVisible ici !
+        }}
       />
 
       <FlatList
@@ -80,8 +69,17 @@ export default function PlaylistsScreen() {
         contentContainerStyle={styles.listContent}
         renderItem={({ item }) => (
           <Pressable
-            onPress={() => router.push(`/playlists/${item.spotify_id}`)} // navigation dynamique
             style={styles.playlistItem}
+            onPress={() =>
+              router.push({
+                pathname: '/playlists/[id]',
+                params: {
+                  id: item.spotify_id,
+                  name: item.nom,
+                  image: item.image ?? ''
+                }
+              })
+            }
           >
             {item.image ? (
               <Image source={{ uri: item.image }} style={styles.playlistImage} />
@@ -92,12 +90,8 @@ export default function PlaylistsScreen() {
             )}
             <View style={styles.info}>
               <Text style={styles.playlistTitle}>{item.nom}</Text>
-              <Text style={styles.playlistOwner}>
-                Propriétaire : {item.owner}
-              </Text>
-              <Text style={styles.playlistTracks}>
-                {item.tracks_count} titres
-              </Text>
+              <Text style={styles.playlistOwner}>Propriétaire : {item.owner}</Text>
+              <Text style={styles.playlistTracks}>{item.tracks_count} titres</Text>
             </View>
           </Pressable>
         )}
@@ -116,40 +110,31 @@ export default function PlaylistsScreen() {
         onNext={() => console.log('Next')}
         onPrevious={() => console.log('Previous')}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#fff' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  listContent: { paddingBottom: 100, paddingTop: 16 },
-  playlistItem: {
+  container:           { flex: 1, backgroundColor: '#fff' },
+  center:              { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  listContent:         { paddingBottom: 100, paddingTop: 16 },
+  playlistItem:        {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderColor: '#eee',
-    gap: 14,
+    gap: 14
   },
-  playlistImage: {
-    width: 56,
-    height: 56,
-    borderRadius: 10,
-    backgroundColor: '#eee',
-  },
+  playlistImage:       { width: 56, height: 56, borderRadius: 10, backgroundColor: '#eee' },
   playlistImagePlaceholder: {
-    width: 56,
-    height: 56,
-    borderRadius: 10,
-    backgroundColor: '#eee',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 56, height: 56, borderRadius: 10, backgroundColor: '#eee',
+    justifyContent: 'center', alignItems: 'center'
   },
-  info: { flex: 1, justifyContent: 'center' },
-  playlistTitle: { fontSize: 16, fontWeight: 'bold' },
-  playlistOwner: { color: '#888', fontSize: 13 },
-  playlistTracks: { color: '#666', fontSize: 12 },
-  empty: { alignItems: 'center', padding: 32 },
+  info:                { flex: 1, justifyContent: 'center' },
+  playlistTitle:       { fontSize: 16, fontWeight: 'bold' },
+  playlistOwner:       { color: '#888', fontSize: 13 },
+  playlistTracks:      { color: '#666', fontSize: 12 },
+  empty:               { alignItems: 'center', padding: 32 },
 });
